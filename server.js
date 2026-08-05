@@ -10,8 +10,14 @@
 
 const express = require('express');
 const { DatabaseSync } = require('node:sqlite'); // el "motor" de la despensa
+const path = require('node:path');
 const app = express();
 app.use(express.json());
+
+// Esto hace que el servidor le muestre la webapp de la cocina a
+// cualquiera que entre a la dirección principal (https://.../),
+// en vez de solo responder pedidos de datos.
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Permite que nuestra webapp (que vive en otra dirección) le pueda
 // hablar a este servidor. Sin esto, el navegador bloquea el pedido
