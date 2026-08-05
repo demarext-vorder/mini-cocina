@@ -43,7 +43,22 @@ app.post('/recetas', (req, res) => {
   res.status(201).json(nueva);
 });
 
-const PORT = 3000;
+// ------------------------------------------------------------------
+// RUTA TEMPORAL SOLO PARA PROBAR DESDE EL NAVEGADOR (sin Postman/curl).
+// Uso: /recetas/agregar?nombre=Milanesa
+// Esto NO se hace así en una app real (se usa POST), pero nos sirve
+// ahora para verificar que la despensa guarda datos de verdad.
+// ------------------------------------------------------------------
+app.get('/recetas/agregar', (req, res) => {
+  const nombre = req.query.nombre;
+  if (!nombre) {
+    return res.status(400).send('Agregá ?nombre=ALGO al final de la dirección');
+  }
+  const resultado = db.prepare('INSERT INTO recetas (nombre) VALUES (?)').run(nombre);
+  res.json({ id: resultado.lastInsertRowid, nombre, mensaje: 'Guardado correctamente' });
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`La cocina está prendida y escuchando en el puerto ${PORT}`);
   console.log('La despensa es el archivo: datos.db');
