@@ -13,6 +13,17 @@ const { DatabaseSync } = require('node:sqlite'); // el "motor" de la despensa
 const app = express();
 app.use(express.json());
 
+// Permite que nuestra webapp (que vive en otra dirección) le pueda
+// hablar a este servidor. Sin esto, el navegador bloquea el pedido
+// por seguridad (política de "mismo origen").
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 // Abrimos (o creamos si no existe) el archivo que es nuestra despensa.
 const db = new DatabaseSync('datos.db');
 
@@ -23,6 +34,43 @@ db.exec(`
     nombre TEXT NOT NULL
   )
 `);
+
+// Tabla nueva: acá va a vivir TODO lo de la webapp de la cocina
+// (recetas con ingredientes, y las planillas por fecha), como un
+// único paquete de datos. Es más simple que armar una tabla por
+// cada cosa, y alcanza perfecto para este uso.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS datos_cocina (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    contenido TEXT NOT NULL
+  )
+`);
+
+// PEDIDO: "Dame todos los datos de la webapp de cocina"
+app.get('/datos', (req, res) => {
+  const fila = db.prepare('SELECT contenido FROM datos_cocina WHERE id = 1').get();
+  if (!fila) {
+    return res.json({ recipes: [], menusByDate: {} });
+  }
+  console.log('Alguien pidió los datos de la cocina');
+  res.json(JSON.parse(fila.contenido));
+});
+
+// PEDIDO: "Guardá estos datos de la webapp de cocina" (reemplaza todo)
+app.put('/datos', (req, res) => {
+  const contenido = JSON.stringify(req.body || {});
+  db.prepare(`
+    INSERT INTO datos_cocina (id, contenido) VALUES (1, ?)
+    ON CONFLICT(id) DO UPDATE SET contenido = excluded.contenido
+  `).run(contenido);
+  console.log('Se guardaron los datos de la cocina en la despensa');
+  res.json({ mensaje: 'Guardado correctamente' });
+});
+
+// ------------------------------------------------------------------
+// Lo de acá abajo es de la lección anterior (recetas sueltas de prueba).
+// Lo dejamos, no molesta, pero ya no lo usa la webapp real.
+// ------------------------------------------------------------------
 
 // PEDIDO 1: "Dame todas las recetas" -> ahora lee del archivo, no de memoria
 app.get('/recetas', (req, res) => {
