@@ -1,1 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planillas de Producción — Cocina</title>
+<style>
+  :root{
+    --bg:#F1F3F4;
+    --surface:#FFFFFF;
+    --paper:#F8F9FA;
+    --paper-dark:#ECEEF0;
+    --ink:#202124;
+    --ink-soft:#5F6368;
+    --border:#DADCE0;
+    --border-strong:#C4C7C9;
+    --accent:#1A73E8;
+    --accent-dark:#174EA6;
+    --accent-hover:#1765CC;
+    --accent-tint:#E8F0FE;
+    --danger:#D93025;
+    --danger-tint:#FCE8E6;
+    --white:#FFFFFF;
+    --elev-1:0 1px 2px rgba(60,64,67,.30), 0 1px 3px 1px rgba(60,64,67,.15);
+    --elev-2:0 1px 3px rgba(60,64,67,.30), 0 4px 8px 3px rgba(60,64,67,.15);
+    --elev-3:0 2px 6px rgba(60,64,67,.30), 0 8px 16px 4px rgba(60,64,67,.12);
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font);
+    font-size:14.5px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    max-width:980px;
+    margin:0 auto;
+    padding:24px 16px 80px;
+  }
+  header.top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    margin-bottom:18px;
+    flex-wrap:wrap;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:16px 20px;
+    box-shadow:var(--elev-1);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:16px;
+  }
+  .brand .mark{
+    background:var(--accent);
+    color:var(--white);
+    font-family:var(--font);
+    font-weight:600;
+    font-size:12.5px;
+    letter-spacing:.02em;
+    padding:5px 10px;
+    border-radius:6px;
+  }
+  .brand .logo{
+    height:64px;
+    width:auto;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--white);
+    padding:4px;
+    flex-shrink:0;
+  }
+  h1{
+    font-family:var(--font);
+    font-weight:500;
+    font-size:22px;
+    letter-spacing:0;
+    margin:0;
+    text-transform:none;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-top:3px;
+    font-weight:400;
+  }
+
+  .backup-bar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:12px 16px;
+    margin-bottom:14px;
+    box-shadow:var(--elev-1);
+  }
+  .backup-text b{
+    display:block;
+    font-family:var(--font);
+    text-transform:none;
+    font-weight:500;
+    font-size:13.5px;
+    letter-spacing:0;
+    color:var(--ink);
+  }
+  .backup-text span{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-weight:400;
+  }
+  .backup-actions{ display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+
+  nav.tabs{
+    display:flex;
+    gap:4px;
+    background:var(--paper-dark);
+    padding:4px;
+    border-radius:12px;
+    margin-bottom:20px;
+  }
+  nav.tabs button{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:10px 8px;
+    font-family:var(--font);
+    font-weight:500;
+    font-size:13px;
+    letter-spacing:0;
+    text-transform:none;
+    color:var(--ink-soft);
+    border-radius:9px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease;
+  }
+  nav.tabs button.active{
+    background:var(--surface);
+    color:var(--accent-dark);
+    box-shadow:var(--elev-1);
+    font-weight:600;
+  }
+  nav.tabs button:not(.active):hover{ background:rgba(0,0,0,.04); color:var(--ink); }
+
+  section.panel{ display:none; }
+  section.panel.active{ display:block; }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:16px;
+    box-shadow:var(--elev-1);
+  }
+  .card h2{
+    font-family:var(--font);
+    font-size:15px;
+    font-weight:600;
+    text-transform:none;
+    letter-spacing:0;
+    margin:0 0 14px;
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card h2 .n{
+    background:var(--accent-tint);
+    color:var(--accent-dark);
+    font-family:var(--font);
+    font-weight:600;
+    font-size:11.5px;
+    padding:2px 8px;
+    border-radius:20px;
+  }
+
+  label{
+    display:block;
+    font-size:12px;
+    font-weight:500;
+    text-transform:none;
+    letter-spacing:0;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  input[type=text], input[type=number], input[type=date], select{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:var(--surface);
+    font-family:var(--font);
+    font-size:14px;
+    color:var(--ink);
+    box-shadow:none;
+  }
+  input:focus, select:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-tint); }
+  .field{ margin-bottom:12px; }
+  .row{ display:flex; gap:8px; }
+  .row > .field{ flex:1; min-width:0; }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    border:1px solid transparent;
+    border-radius:20px;
+    padding:9px 18px;
+    font-family:var(--font);
+    font-weight:500;
+    font-size:13px;
+    text-transform:none;
+    letter-spacing:0;
+    cursor:pointer;
+    transition:background .15s ease, box-shadow .15s ease, filter .1s ease;
+  }
+  .btn:active{ filter:brightness(.93); }
+  .btn-primary{ background:var(--accent); color:var(--white); box-shadow:var(--elev-1); }
+  .btn-primary:hover{ background:var(--accent-hover); box-shadow:var(--elev-2); }
+  .btn-stamp{ background:var(--accent-tint); color:var(--accent-dark); }
+  .btn-stamp:hover{ background:#DCE8FD; }
+  .btn-ghost{ background:var(--surface); color:var(--accent-dark); border:1px solid var(--border); }
+  .btn-ghost:hover{ background:var(--accent-tint); border-color:var(--accent); }
+  .btn-small{ padding:6px 12px; font-size:12px; }
+  .btn-danger{ background:var(--surface); color:var(--danger); border:1px solid var(--border); }
+  .btn-danger:hover{ background:var(--danger-tint); border-color:var(--danger); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .ing-row{
+    display:grid;
+    grid-template-columns:1fr 70px 70px 32px;
+    gap:6px;
+    margin-bottom:6px;
+    align-items:center;
+  }
+  .ing-row input{ padding:8px 9px; font-size:13.5px; }
+  .ing-row .rm{
+    background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--danger);font-size:16px;cursor:pointer;line-height:1;height:100%;
+  }
+  .ing-row .rm:hover{ background:var(--danger-tint); border-color:var(--danger); }
+  .ghost-add{
+    background:var(--paper);border:1px dashed var(--border-strong);color:var(--ink-soft);
+    border-radius:10px;padding:9px;width:100%;font-size:12.5px;font-weight:500;cursor:pointer;margin-top:2px;
+  }
+  .ghost-add:hover{ background:var(--accent-tint); border-color:var(--accent); color:var(--accent-dark); }
+
+  .recipe-list{ display:flex; flex-direction:column; gap:8px; }
+  .recipe-chip{
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px 14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    background:var(--surface);
+  }
+  .recipe-chip:hover{ box-shadow:var(--elev-1); }
+  .recipe-chip .info b{ font-family:var(--font); font-weight:600; text-transform:none; font-size:13.5px; color:var(--ink); }
+  .recipe-chip .info .tag{
+    display:inline-block;
+    font-size:10.5px;
+    font-family:var(--font);
+    background:var(--accent-tint);
+    color:var(--accent-dark);
+    padding:2px 8px;
+    border-radius:20px;
+    margin-left:6px;
+    font-weight:600;
+  }
+  .recipe-chip .info .ings{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+  .recipe-chip .actions{ display:flex; gap:6px; flex-shrink:0; }
+
+  .empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    font-weight:400;
+    padding:26px 10px;
+    border:1px dashed var(--border-strong);
+    border-radius:12px;
+    background:var(--paper);
+  }
+
+  /* --- Planilla builder --- */
+  .grupo-block{ margin-bottom:16px; }
+  .grupo-title{
+    font-family:var(--font);
+    font-weight:600;
+    font-size:12.5px;
+    letter-spacing:.02em;
+    text-transform:none;
+    color:var(--white);
+    background:var(--accent-dark);
+    padding:9px 14px;
+    border-radius:12px 12px 0 0;
+  }
+  .grupo-body{
+    border:1px solid var(--border);
+    border-top:none;
+    border-radius:0 0 12px 12px;
+    padding:14px;
+    background:var(--paper);
+  }
+  .entry-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:9px 12px;
+    margin-bottom:6px;
+    font-size:13px;
+  }
+  .entry-row .rac{
+    font-family:var(--font);
+    font-weight:600;
+    color:var(--accent-dark);
+    background:var(--accent-tint);
+    padding:2px 8px;
+    border-radius:20px;
+    margin-right:8px;
+    font-size:12px;
+  }
+  .add-entry{
+    display:flex;
+    gap:6px;
+    margin-top:8px;
+  }
+  .add-entry select{ flex:2; }
+  .add-entry input{ flex:0 0 60px; }
+  .add-entry button{ flex:0 0 auto; }
+
+  /* --- Print sheet preview --- */
+  .sheet{
+    background:var(--surface);
+    border:1px solid var(--border);
+    padding:0;
+    overflow:hidden;
+    border-radius:16px;
+    box-shadow:var(--elev-2);
+  }
+  .sheet-head{
+    background:var(--accent);
+    color:var(--white);
+    padding:18px 22px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .sheet-head .title{ font-family:var(--font); text-transform:none; font-size:16px; font-weight:600; }
+  .sheet-head .date{ font-family:var(--font); font-size:13px; background:rgba(255,255,255,.22); padding:3px 10px; border-radius:20px; font-weight:500; }
+  .sheet-group{ border-top:1px solid var(--border); }
+  .sheet-group-title{
+    font-family:var(--font);
+    text-transform:none;
+    font-weight:600;
+    font-size:14.5px;
+    background:var(--paper-dark);
+    color:var(--accent-dark);
+    padding:10px 22px;
+    letter-spacing:0;
+  }
+  .sheet-dish{ padding:12px 22px 16px; border-bottom:1px solid var(--paper-dark); }
+  .sheet-dish:last-child{ border-bottom:none; }
+  .sheet-dish-name{
+    font-family:var(--font);
+    font-weight:600;
+    font-size:14px;
+    text-transform:none;
+    margin-bottom:8px;
+    color:var(--ink);
+  }
+  .sheet-dish-name .rac-badge{
+    font-family:var(--font);
+    background:var(--accent-tint);
+    color:var(--accent-dark);
+    font-size:11px;
+    font-weight:600;
+    padding:2px 9px;
+    border-radius:20px;
+    margin-left:8px;
+  }
+  table.ing-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.ing-table td{ padding:5px 4px; border-bottom:1px solid var(--paper-dark); }
+  table.ing-table td.qty{ font-family:var(--font); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  table.ing-table td.qty.total{ font-weight:700; color:var(--accent-dark); }
+  table.ing-table thead td{ font-size:10.5px; text-transform:uppercase; color:var(--ink-soft); border-bottom:1px solid var(--border); font-weight:600; letter-spacing:.03em; }
+
+  .no-entries{ padding:16px 22px; color:var(--ink-soft); font-size:13px; }
+
+  .toolbar{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:end; }
+  .toolbar .field{ margin-bottom:0; flex:1; min-width:140px; }
+
+  select#recipeGroupFilter{ max-width:160px; }
+
+  /* Print styles: dos columnas, limpio y sobrio para ahorrar tinta */
+  @media print{
+    body{ background:#fff !important; }
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ position:absolute; top:0; left:0; width:100%; }
+    #printArea *{ box-shadow:none !important; text-shadow:none !important; }
+    .sheet{ border:1.5px solid #000; border-radius:0; }
+    .sheet-head{ background:#000 !important; }
+    .sheet-columns{
+      column-count:2;
+      column-gap:0;
+    }
+    .sheet-group{
+      break-inside:avoid;
+      display:inline-block;
+      width:100%;
+      border-left:1px solid #000;
+      border-right:1px solid #000;
+    }
+    .sheet-group:first-child{ border-top:none; }
+    .sheet-dish{ break-inside:avoid; }
+    .sheet-group-title{ background:#fff !important; color:#000 !important; }
+    table.ing-table td.qty.total{ color:#000 !important; }
+    .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
+    @page{ margin:10mm; }
+  }
+
+  ::selection{ background:var(--accent-tint); color:var(--accent-dark); }
+</style>
+</head>
+<body>
+
+<div id="appRoot">
+<div class="app">
+
+  <header class="top">
+    <div class="brand">
+      <img class="logo" src="data:image/jpeg;base64,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RmrqbmMv4GA0b9Ralxyz+SUA8o2kzfGbKU5hpY6F2o6tXApJQJFFpRt1gu+SIG3W2UyAhyLRqhNW5hApVu4msX25+0c5XJfV9Sg0+9dWZdHZ7yhUAsXS3h2TFk7QQIttlgZ61KEGpUEIvIFzFb/ME5CQBqaRMPUGo2QDQUfe3//aAAwDAQACAAMAAAAQ8888888888888888888888888888gAAAAAAAc8888AACg3iAA88888AASSNhAA88888AAoIL0AA88888AAoB6nqA88888ADoEAcgK88888At/JyMxi88888AYnWtWP488888IAAAAAAA08888888888888888888888888888//EACYRAQACAQIFBAMBAAAAAAAAAAEAESExQTBRYXGBIFCRwaGx8dH/2gAIAQMBAT8Q9rAuhKGh5ZayDMiKeXCBosmRimyXFw35kwl1wqVtLvryl7pRp9xy0znl2iQXTaddTg1plNFIphvfP7j9av8Aof5L07JJ+BwK0x6sYD0L/JuynX26p9MW3fwzVnU36SvkwasAWsesHn/qUkgWlLxZKWEIjerdB6u0dULLnjKHy3U71o5TfxrNOYZvi4+tcGVT3KDv9R0kqD4xjxBctAV2joWFN51KXpkvW5cb2UlVz3jIdMbrLWm8a01UFVTefa//xAAlEQEAAgIABQQDAQAAAAAAAAABABEhMTBBUXGBIFBhwaGx0fD/2gAIAQIBAT8Q9rUMs5YhMe7hIJTKaV0XAWQ4SytYlL9Q2WglSgeDQktuybAnbEReX0f7H1JJq4Atok67UQSBLb/HwP3FmIbeLrzGWCkRGn1p8L9xuix2XWal1yUlUujmQs1HWHQv6mch16n/AFTcA2cuUPWRbUA85YUvnJF8AK33lgersrFYzXxjUqY03e+k2U2xeM7jTRbzm/a//8QAKBABAAICAQMDBAMBAQAAAAAAAQARITFBIDBREGFxgZGx8GCh0UDB/9oACAEBAAE/EP5wAALvsuv+A32XXU2Ke0oJqRxH8o8f2f8AsOrXFfkQyt6Sx6jfZddJlDe4vBFUE5lY9/PqkVSjcru2Uv8Agg+hqVkek32XXSqkTnf3V5hwDa3x7JWOl1S/CXQvBBaeYwhbLa9o+4QmdMBsjyhF1sLs6DfZddLglsHbYuq8RAF6kfpHgCyC5aaREg5FSnIYFZfv4iARsgXZBQUNUcdBvsuuh8FFhdLFgPIkq6dGyrxZGfBZR+8DDxbfsMsv+hdHISsVIB0fmGxdj2m4HYqgoHQb7LroeCFuKJS3K7w+iKVs0Kh8xGrsJB88QucNsX9q/MSR+DXb3h8QAgGvJ5gd7aFtfOyISq/MvQb7LrodlVCLYbMjHsd4UQE8mqT9SVTnVj/YhDWtKX2XEsb9PY4SY9BdRhTz6foPPQb7Lro/WeHoEhGk0m41lhwr3OSJnLpDy+ZEUiUmEZ+g89Bvsuuh/vcPUOzCtMu8BDU9j5n6jz0G+y69BGQ2Un9ErOe7kfSYb4hVlMNBAsUgcexBH0SWWA8hq4xWzDgx5V1KJmMyhhPa5b6WyRvHNcxSWiSpFq1gJVTmvLC5590dbNcLxvRPnU79lIQB1IR+fQ32XXpdE+BcPWgpDi8MfN8BAcFSkSm9C2yGa94sLMVwNIxzAoIULw1jXDN68Z8wxsiGxobNa4Za5lTdb6zjrAj2LkEW1CuWCWumRvwzBTCVHNoG4NXnHob7Lr0dJRf73gaDlxTpCHhI4BaNymH100rW8yoOciv/AGMbB/8AusF8W3LVWCSeGFBLHeY6Y3Z4i5VsAt0PlD6QoppHwRlr9VjDj/whFgPI3DfZdehZOiLIxbPnGAIWhma94hGRQVCpKAuXQEiJsW4jqCwoHNeai7jf4LDfuEJm1nVOQEqC0QYcAVcraNs6la1uxf6hZ+HgThMf1FuNQC03hJSaeUJrauIdI2xeRX8w32XXovIIjmbOAu40dkg2m2vaAqBHFMbEJtQ3L1mmGJWV4IMK1hlgTyuyiw9YqopSdgTeCoGWWsfmyNyy0l25JWjXSob7Lr0rN8TBog0HdN9qpUqVKlSpUqVKlSpUqV/EP//Z" alt="Sanatorio Juncal">
+      <div>
+        <h1>Planillas de Producción</h1>
+        <div class="subtitle">Recetario y hoja de cocina — Almuerzo / Cena · Pacientes / Personal</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="backup-bar">
+    <div class="backup-text">
+      <b>Conexión con el servidor</b>
+      <span id="connectionStatus">Conectando...</span>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="recetario">Recetario</button>
+    <button class="tab-btn" data-tab="planilla">Planilla del día</button>
+    <button class="tab-btn" data-tab="imprimir">Imprimir</button>
+  </nav>
+
+  <!-- ================= RECETARIO ================= -->
+  <section class="panel active" id="panel-recetario">
+    <div class="card">
+      <h2><span class="n">+</span> Nueva receta</h2>
+      <div class="row">
+        <div class="field">
+          <label>Nombre del plato</label>
+          <input type="text" id="newRecipeName" placeholder="Ej: Puré de batatas">
+        </div>
+        <div class="field" style="max-width:170px">
+          <label>Se sirve en</label>
+          <select id="newRecipeGroup">
+            <option value="pacientes">Pacientes</option>
+            <option value="personal">Personal</option>
+          </select>
+        </div>
+      </div>
+      <label style="margin-top:4px">Ingredientes por 1 ración</label>
+      <div id="ingredientsBuilder"></div>
+      <button class="ghost-add" id="addIngRow">+ Agregar ingrediente</button>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button class="btn btn-primary" id="saveRecipeBtn">Guardar receta</button>
+        <button class="btn btn-ghost" id="clearRecipeForm">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n" id="recipeCount">0</span> Recetas guardadas</h2>
+      <div id="recipeList" class="recipe-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= PLANILLA DEL DIA ================= -->
+  <section class="panel" id="panel-planilla">
+    <div class="card">
+      <div class="toolbar">
+        <div class="field">
+          <label>Fecha de la planilla</label>
+          <input type="date" id="menuDate">
+        </div>
+      </div>
+      <div id="gruposContainer"></div>
+    </div>
+  </section>
+
+  <!-- ================= IMPRIMIR ================= -->
+  <section class="panel" id="panel-imprimir">
+    <div class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+      <div class="field" style="flex:1; min-width:160px;">
+        <label>Fecha a imprimir</label>
+        <input type="date" id="printDate">
+      </div>
+      <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir planilla</button>
+    </div>
+    <div id="printArea"></div>
+  </section>
+
+</div>
+</div>
+
+<script>
+function initApp(){
+(function(){
+  const GRUPOS = ["PACIENTE ALMUERZO","PACIENTE CENA","PERSONAL ALMUERZO","PERSONAL CENA"];
+  const UNITS = ["kg","gr","lt","ml","uni","atado","pizca"];
+
+  let recipes = [];
+  let menusByDate = {}; // fecha -> [{id, grupo, recipeId, raciones}]
+  let currentIngRows = [];
+
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+  function todayISO(){
+    const d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+  function fmtNum(n){
+    n = Math.round(n*1000)/1000;
+    return n.toString();
+  }
+  function fmtDateHuman(iso){
+    if(!iso) return "";
+    const [y,m,d] = iso.split("-");
+    return `${d}/${m}/${y}`;
+  }
+
+  // ---------- Conexión con el servidor (backend real en la nube) ----------
+  const API_URL = 'https://mini-cocina.onrender.com';
+  const connStatus = document.getElementById('connectionStatus');
+
+  async function loadAll(){
+    connStatus.textContent = 'Conectando con el servidor... (puede tardar unos segundos si estuvo inactivo)';
+    try{
+      const resp = await fetch(`${API_URL}/datos`);
+      if(!resp.ok) throw new Error('Respuesta no válida del servidor');
+      const data = await resp.json();
+      recipes = Array.isArray(data.recipes) ? data.recipes : [];
+      menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
+      connStatus.textContent = 'Conectado — los cambios se guardan solos en el servidor.';
+    }catch(e){
+      console.error('No se pudo conectar con el servidor', e);
+      recipes = [];
+      menusByDate = {};
+      connStatus.textContent = 'Sin conexión con el servidor. Revisá tu internet y recargá la página.';
+    }
+  }
+
+  async function persistAll(){
+    try{
+      const resp = await fetch(`${API_URL}/datos`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipes, menusByDate })
+      });
+      if(!resp.ok) throw new Error('Respuesta no válida del servidor al guardar');
+      const now = new Date();
+      connStatus.textContent = `Guardado en el servidor — último guardado ${now.toLocaleTimeString()}.`;
+    }catch(e){
+      console.error('No se pudo guardar en el servidor', e);
+      connStatus.textContent = 'No se pudo guardar en el servidor. Revisá tu internet e intentá de nuevo.';
+      alert('No se pudo guardar en el servidor. Los cambios quedan solo en esta pantalla hasta que se reestablezca la conexión.');
+    }
+  }
+
+  async function saveRecipes(){
+    await persistAll();
+  }
+  async function saveMenus(){
+    await persistAll();
+  }
+
+  // ---------- Tabs ----------
+  $$('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+      $$('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      $('#panel-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab === 'planilla') renderGrupos();
+      if(btn.dataset.tab === 'imprimir') renderPrintArea();
+    });
+  });
+
+  // ---------- Ingredient row builder (form) ----------
+  function addIngRow(prefill){
+    const row = prefill || {name:'', qty:'', unit:'kg'};
+    currentIngRows.push(row);
+    renderIngBuilder();
+  }
+  function renderIngBuilder(){
+    const box = $('#ingredientsBuilder');
+    box.innerHTML = '';
+    currentIngRows.forEach((row, idx)=>{
+      const div = document.createElement('div');
+      div.className = 'ing-row';
+      div.innerHTML = `
+        <input type="text" placeholder="Ingrediente (ej: Cebolla)" value="${escapeHtml(row.name)}" data-idx="${idx}" data-f="name">
+        <input type="number" step="0.001" placeholder="Cant." value="${row.qty}" data-idx="${idx}" data-f="qty">
+        <select data-idx="${idx}" data-f="unit">
+          ${UNITS.map(u=>`<option value="${u}" ${u===row.unit?'selected':''}>${u}</option>`).join('')}
+        </select>
+        <button class="rm" data-idx="${idx}" title="Quitar">×</button>
+      `;
+      box.appendChild(div);
+    });
+    $$('.ing-row input, .ing-row select', box).forEach(el=>{
+      el.addEventListener('input', e=>{
+        const idx = +e.target.dataset.idx;
+        const f = e.target.dataset.f;
+        currentIngRows[idx][f] = f==='qty' ? e.target.value : e.target.value;
+      });
+    });
+    $$('.ing-row .rm', box).forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        const idx = +e.target.dataset.idx;
+        currentIngRows.splice(idx,1);
+        renderIngBuilder();
+      });
+    });
+  }
+  $('#addIngRow').addEventListener('click', ()=> addIngRow());
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  $('#clearRecipeForm').addEventListener('click', resetRecipeForm);
+  function resetRecipeForm(){
+    $('#newRecipeName').value = '';
+    $('#newRecipeGroup').value = 'pacientes';
+    currentIngRows = [];
+    addIngRow();
+    delete $('#saveRecipeBtn').dataset.editing;
+    $('#saveRecipeBtn').textContent = 'Guardar receta';
+  }
+
+  $('#saveRecipeBtn').addEventListener('click', async ()=>{
+    const name = $('#newRecipeName').value.trim();
+    if(!name){ alert('Poné un nombre para el plato.'); return; }
+    const group = $('#newRecipeGroup').value;
+    const ings = currentIngRows
+      .map(r=>({name:(r.name||'').trim(), qty:parseFloat(r.qty), unit:r.unit||'kg'}))
+      .filter(r=>r.name && !isNaN(r.qty));
+    if(ings.length === 0){ alert('Agregá al menos un ingrediente con cantidad.'); return; }
+
+    const editingId = $('#saveRecipeBtn').dataset.editing;
+    if(editingId){
+      const idx = recipes.findIndex(r=>r.id===editingId);
+      if(idx>=0) recipes[idx] = {...recipes[idx], name, group, ingredients: ings};
+    } else {
+      recipes.push({id:uid(), name, group, ingredients: ings});
+    }
+    await saveRecipes();
+    resetRecipeForm();
+    renderRecipeList();
+  });
+
+  function renderRecipeList(){
+    const box = $('#recipeList');
+    $('#recipeCount').textContent = recipes.length;
+    if(recipes.length===0){
+      box.innerHTML = '<div class="empty">Todavía no cargaste ninguna receta.<br>Sumá el primer plato arriba ↑</div>';
+      return;
+    }
+    box.innerHTML = '';
+    recipes.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(rec=>{
+      const div = document.createElement('div');
+      div.className = 'recipe-chip';
+      const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
+      const ingsPreview = rec.ingredients.map(i=>`${i.name} (${fmtNum(i.qty)} ${i.unit})`).join(' · ');
+      div.innerHTML = `
+        <div class="info">
+          <b>${escapeHtml(rec.name)}</b><span class="tag">${groupLabel}</span>
+          <div class="ings">${escapeHtml(ingsPreview)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-small btn-ghost" data-act="edit" data-id="${rec.id}">Editar</button>
+          <button class="btn btn-small btn-danger" data-act="del" data-id="${rec.id}">Borrar</button>
+        </div>
+      `;
+      box.appendChild(div);
+    });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editRecipe(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteRecipe(b.dataset.id)));
+  }
+
+  function editRecipe(id){
+    const rec = recipes.find(r=>r.id===id);
+    if(!rec) return;
+    $('#newRecipeName').value = rec.name;
+    $('#newRecipeGroup').value = rec.group;
+    currentIngRows = rec.ingredients.map(i=>({name:i.name, qty:i.qty, unit:i.unit}));
+    renderIngBuilder();
+    $('#saveRecipeBtn').dataset.editing = id;
+    $('#saveRecipeBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+    document.querySelector('[data-tab="recetario"]').click();
+  }
+
+  async function deleteRecipe(id){
+    if(!confirm('¿Borrar esta receta? También se va a quitar de las planillas donde esté cargada.')) return;
+    recipes = recipes.filter(r=>r.id!==id);
+    await saveRecipes();
+    // limpiar referencias en menús
+    Object.keys(menusByDate).forEach(fecha=>{
+      menusByDate[fecha] = menusByDate[fecha].filter(e=>e.recipeId!==id);
+    });
+    await saveMenus();
+    renderRecipeList();
+  }
+
+  // ---------- Planilla del día ----------
+  $('#menuDate').value = todayISO();
+  $('#menuDate').addEventListener('change', renderGrupos);
+
+  function getRecipesForGroup(grupo){
+    const tipo = grupo.startsWith('PACIENTE') ? 'pacientes' : 'personal';
+    return recipes.filter(r => r.group === tipo);
+  }
+
+  function renderGrupos(){
+    const fecha = $('#menuDate').value || todayISO();
+    const cont = $('#gruposContainer');
+    cont.innerHTML = '';
+    if(recipes.length===0){
+      cont.innerHTML = '<div class="empty">Cargá primero algunas recetas en la pestaña <b>Recetario</b> para poder armar la planilla.</div>';
+      return;
+    }
+    const entries = menusByDate[fecha] || [];
+
+    GRUPOS.forEach(grupo=>{
+      const block = document.createElement('div');
+      block.className = 'grupo-block';
+      const opciones = getRecipesForGroup(grupo);
+      const groupEntries = entries.filter(e=>e.grupo===grupo);
+
+      block.innerHTML = `
+        <div class="grupo-title">${grupo}</div>
+        <div class="grupo-body">
+          <div class="entries-box"></div>
+          <div class="add-entry">
+            <select class="sel-recipe">
+              <option value="">Elegir plato...</option>
+              ${opciones.map(o=>`<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('')}
+            </select>
+            <input type="number" min="1" class="inp-rac" placeholder="Rac.">
+            <button class="btn btn-small btn-primary btn-add">+ Agregar</button>
+          </div>
+        </div>
+      `;
+      cont.appendChild(block);
+
+      const entriesBox = $('.entries-box', block);
+      if(groupEntries.length===0){
+        entriesBox.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0 8px;">Sin platos cargados todavía.</div>';
+      } else {
+        groupEntries.forEach(e=>{
+          const rec = recipes.find(r=>r.id===e.recipeId);
+          const row = document.createElement('div');
+          row.className = 'entry-row';
+          row.innerHTML = `
+            <span><span class="rac">${e.raciones} rac.</span>${escapeHtml(rec ? rec.name : '(receta borrada)')}</span>
+            <button class="btn btn-small btn-danger" data-eid="${e.id}">Quitar</button>
+          `;
+          entriesBox.appendChild(row);
+        });
+        $$('[data-eid]', entriesBox).forEach(b=>{
+          b.addEventListener('click', async ()=>{
+            menusByDate[fecha] = (menusByDate[fecha]||[]).filter(x=>x.id!==b.dataset.eid);
+            await saveMenus();
+            renderGrupos();
+          });
+        });
+      }
+
+      $('.btn-add', block).addEventListener('click', async ()=>{
+        const sel = $('.sel-recipe', block);
+        const inp = $('.inp-rac', block);
+        const recipeId = sel.value;
+        const raciones = parseInt(inp.value);
+        if(!recipeId){ alert('Elegí un plato.'); return; }
+        if(!raciones || raciones<=0){ alert('Ingresá la cantidad de raciones.'); return; }
+        if(!menusByDate[fecha]) menusByDate[fecha] = [];
+        menusByDate[fecha].push({id:uid(), grupo, recipeId, raciones});
+        await saveMenus();
+        renderGrupos();
+      });
+    });
+  }
+
+  // ---------- Imprimir ----------
+  $('#printDate').value = todayISO();
+  $('#printDate').addEventListener('change', renderPrintArea);
+  $('#doPrintBtn').addEventListener('click', ()=>{ renderPrintArea(); setTimeout(()=>window.print(), 60); });
+
+  function renderPrintArea(){
+    const fecha = $('#printDate').value || todayISO();
+    const entries = menusByDate[fecha] || [];
+    const area = $('#printArea');
+
+    let html = `<div class="sheet">
+      <div class="sheet-head">
+        <div class="title">Planilla de Producción</div>
+        <div class="date">${fmtDateHuman(fecha)}</div>
+      </div>
+      <div class="sheet-columns">`;
+
+    GRUPOS.forEach(grupo=>{
+      const groupEntries = entries.filter(e=>e.grupo===grupo);
+      html += `<div class="sheet-group">
+        <div class="sheet-group-title">${grupo}</div>`;
+      if(groupEntries.length===0){
+        html += `<div class="no-entries">Sin platos cargados para este grupo.</div>`;
+      } else {
+        groupEntries.forEach(e=>{
+          const rec = recipes.find(r=>r.id===e.recipeId);
+          if(!rec) return;
+          html += `<div class="sheet-dish">
+            <div class="sheet-dish-name">${escapeHtml(rec.name)}<span class="rac-badge">${e.raciones} RAC.</span></div>
+            <table class="ing-table">
+              <thead><tr><td>Ingrediente</td><td class="qty">Por ración</td><td class="qty">Total</td></tr></thead>
+              <tbody>`;
+          rec.ingredients.forEach(ing=>{
+            const total = ing.qty * e.raciones;
+            html += `<tr>
+              <td>${escapeHtml(ing.name)}</td>
+              <td class="qty">${fmtNum(ing.qty)} ${ing.unit}</td>
+              <td class="qty total">${fmtNum(total)} ${ing.unit}</td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>`;
+        });
+      }
+      html += `</div>`;
+    });
+
+    html += `</div></div>`;
+    area.innerHTML = html;
+  }
+
+  // ---------- Init ----------
+  (async function init(){
+    await loadAll();
+    if(recipes.length===0){
+      addIngRow();
+    } else {
+      currentIngRows = [];
+      addIngRow();
+    }
+    renderRecipeList();
+    renderGrupos();
+    renderPrintArea();
+  })();
+
+})();
+}
+initApp();
+</script>
+</body>
+</html>
 
