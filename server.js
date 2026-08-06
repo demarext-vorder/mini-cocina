@@ -55,7 +55,7 @@ prepararBaseDeDatos().catch(err => {
   console.error('No se pudo preparar la base de datos:', err.message);
 });
 
-// PEDIDO: "Dame todos los datos de la webapp de cocina"
+// PEDIDO: "Dame todos los datos de la webapp de cocina" (libre, sin contraseña)
 app.get('/datos', async (req, res) => {
   try{
     const resultado = await pool.query('SELECT contenido FROM datos_cocina WHERE id = 1');
@@ -70,8 +70,26 @@ app.get('/datos', async (req, res) => {
   }
 });
 
-// PEDIDO: "Guardá estos datos de la webapp de cocina" (reemplaza todo)
-app.put('/datos', async (req, res) => {
+// Filtro de contraseña: solo se usa para GUARDAR (PUT), no para leer.
+// La contraseña real vive en Render como variable de entorno (APP_PASSWORD),
+// nunca acá en el código -- así no queda expuesta en GitHub, que es público.
+function verificarContrasena(req, res, next){
+  const recibida = req.header('X-App-Password');
+  const correcta = process.env.APP_PASSWORD;
+  if(!correcta){
+    // Si todavía no configuraste APP_PASSWORD en Render, no bloqueamos
+    // nada (para no dejarte trabado), pero avisamos en los logs.
+    console.warn('APP_PASSWORD no está configurada -- el guardado queda sin protección.');
+    return next();
+  }
+  if(recibida !== correcta){
+    return res.status(401).json({ error: 'Contraseña incorrecta' });
+  }
+  next();
+}
+
+// PEDIDO: "Guardá estos datos de la webapp de cocina" (reemplaza todo, PIDE CONTRASEÑA)
+app.put('/datos', verificarContrasena, async (req, res) => {
   try{
     const contenido = JSON.stringify(req.body || {});
     await pool.query(`
