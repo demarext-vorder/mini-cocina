@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planillas de Producción — Despensa</title>
+<title>Planillas de Producción — Cocina</title>
 <style>
   :root{
     --bg:#F1F3F4;
@@ -559,6 +559,13 @@ function initApp(){
   // ---------- Conexión con el servidor (backend real en la nube) ----------
   const API_URL = 'https://mini-cocina.onrender.com';
   const connStatus = document.getElementById('connectionStatus');
+  let appPassword = null; // vive solo en memoria; se pide de nuevo si recargás la página
+
+  function pedirContrasena(mensaje){
+    const intento = prompt(mensaje || 'Ingresá la contraseña de cocina para poder guardar cambios:');
+    if(intento !== null) appPassword = intento;
+    return appPassword;
+  }
 
   async function loadAll(){
     connStatus.textContent = 'Conectando con el servidor... (puede tardar unos segundos si estuvo inactivo)';
@@ -568,7 +575,7 @@ function initApp(){
       const data = await resp.json();
       recipes = Array.isArray(data.recipes) ? data.recipes : [];
       menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
-      connStatus.textContent = 'Conectado — los cambios se guardan solos en el servidor.';
+      connStatus.textContent = 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.';
     }catch(e){
       console.error('No se pudo conectar con el servidor', e);
       recipes = [];
@@ -578,12 +585,22 @@ function initApp(){
   }
 
   async function persistAll(){
+    if(appPassword === null) pedirContrasena();
     try{
       const resp = await fetch(`${API_URL}/datos`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-App-Password': appPassword || ''
+        },
         body: JSON.stringify({ recipes, menusByDate })
       });
+      if(resp.status === 401){
+        appPassword = null;
+        connStatus.textContent = 'Contraseña incorrecta. Tocá "Guardar" de nuevo para reintentar.';
+        alert('Contraseña incorrecta. El cambio no se guardó -- volvé a intentar.');
+        return;
+      }
       if(!resp.ok) throw new Error('Respuesta no válida del servidor al guardar');
       const now = new Date();
       connStatus.textContent = `Guardado en el servidor — último guardado ${now.toLocaleTimeString()}.`;
@@ -890,4 +907,3 @@ initApp();
 </script>
 </body>
 </html>
-
