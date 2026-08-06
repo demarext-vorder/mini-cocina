@@ -1,27 +1,29 @@
 // ------------------------------------------------------------------
-// MINI-COCINA v2: ahora con DESPENSA REAL (base de datos SQLite).
+// MINI-COCINA v3: la despensa ahora vive AFUERA del servidor.
 //
-// La diferencia con la v1: antes las recetas vivían en un array de
-// JavaScript (memoria = se borra al reiniciar). Ahora viven en un
-// ARCHIVO llamado "datos.db" en este mismo directorio. Podés apagar
-// el servidor, prender la compu de nuevo dentro de un mes, y esas
-// recetas van a seguir estando ahí adentro del archivo.
+// Antes usábamos un archivo (datos.db) guardado en el propio disco
+// del servidor. El problema: en el plan gratis de Render, ese disco
+// se borra cada vez que el servidor se "duerme" por inactividad y
+// se vuelve a prender. Por eso los datos desaparecían solos.
+//
+// Ahora usamos una base de datos PostgreSQL alojada en Neon
+// (neon.tech), que es un servicio aparte, siempre encendido,
+// pensado específicamente para guardar datos de forma permanente.
+// El servidor y la base de datos ya no comparten "cajón" -- así,
+// aunque el servidor se duerma y se despierte, la base de datos
+// ni se entera.
 // ------------------------------------------------------------------
 
 const express = require('express');
-const { DatabaseSync } = require('node:sqlite'); // el "motor" de la despensa
+const { Pool } = require('pg');
 const path = require('node:path');
 const app = express();
 app.use(express.json());
 
-// Esto hace que el servidor le muestre la webapp de la cocina a
-// cualquiera que entre a la dirección principal (https://.../),
-// en vez de solo responder pedidos de datos.
+// Sirve la webapp de la cocina (la carpeta "public") en la dirección principal.
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Permite que nuestra webapp (que vive en otra dirección) le pueda
-// hablar a este servidor. Sin esto, el navegador bloquea el pedido
-// por seguridad (política de "mismo origen").
+// Permite que la webapp le hable a este servidor sin que el navegador lo bloquee.
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -30,90 +32,61 @@ app.use((req, res, next) => {
   next();
 });
 
-// Abrimos (o creamos si no existe) el archivo que es nuestra despensa.
-const db = new DatabaseSync('datos.db');
+// Conexión a la base de datos externa. La dirección de conexión
+// (DATABASE_URL) NO va escrita acá en el código -- se configura
+// como variable de entorno en Render, por seguridad (es como la
+// llave de la despensa: no se deja tirada a la vista de cualquiera).
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
-// Si la "estantería" (tabla) todavía no existe dentro del archivo, la creamos.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS recetas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL
-  )
-`);
-
-// Tabla nueva: acá va a vivir TODO lo de la webapp de la cocina
-// (recetas con ingredientes, y las planillas por fecha), como un
-// único paquete de datos. Es más simple que armar una tabla por
-// cada cosa, y alcanza perfecto para este uso.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS datos_cocina (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    contenido TEXT NOT NULL
-  )
-`);
+// Si la tabla todavía no existe en la base de datos, la creamos.
+async function prepararBaseDeDatos(){
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS datos_cocina (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      contenido TEXT NOT NULL
+    )
+  `);
+  console.log('Base de datos lista.');
+}
+prepararBaseDeDatos().catch(err => {
+  console.error('No se pudo preparar la base de datos:', err.message);
+});
 
 // PEDIDO: "Dame todos los datos de la webapp de cocina"
-app.get('/datos', (req, res) => {
-  const fila = db.prepare('SELECT contenido FROM datos_cocina WHERE id = 1').get();
-  if (!fila) {
-    return res.json({ recipes: [], menusByDate: {} });
+app.get('/datos', async (req, res) => {
+  try{
+    const resultado = await pool.query('SELECT contenido FROM datos_cocina WHERE id = 1');
+    if(resultado.rows.length === 0){
+      return res.json({ recipes: [], menusByDate: {} });
+    }
+    console.log('Alguien pidió los datos de la cocina');
+    res.json(JSON.parse(resultado.rows[0].contenido));
+  }catch(err){
+    console.error('Error leyendo la base de datos:', err.message);
+    res.status(500).json({ error: 'No se pudo leer la base de datos' });
   }
-  console.log('Alguien pidió los datos de la cocina');
-  res.json(JSON.parse(fila.contenido));
 });
 
 // PEDIDO: "Guardá estos datos de la webapp de cocina" (reemplaza todo)
-app.put('/datos', (req, res) => {
-  const contenido = JSON.stringify(req.body || {});
-  db.prepare(`
-    INSERT INTO datos_cocina (id, contenido) VALUES (1, ?)
-    ON CONFLICT(id) DO UPDATE SET contenido = excluded.contenido
-  `).run(contenido);
-  console.log('Se guardaron los datos de la cocina en la despensa');
-  res.json({ mensaje: 'Guardado correctamente' });
-});
-
-// ------------------------------------------------------------------
-// Lo de acá abajo es de la lección anterior (recetas sueltas de prueba).
-// Lo dejamos, no molesta, pero ya no lo usa la webapp real.
-// ------------------------------------------------------------------
-
-// PEDIDO 1: "Dame todas las recetas" -> ahora lee del archivo, no de memoria
-app.get('/recetas', (req, res) => {
-  const filas = db.prepare('SELECT * FROM recetas ORDER BY id').all();
-  console.log(`Alguien pidió la lista de recetas (hay ${filas.length} guardadas en el archivo)`);
-  res.json(filas);
-});
-
-// PEDIDO 2: "Agregá esta receta nueva" -> ahora escribe en el archivo
-app.post('/recetas', (req, res) => {
-  const nombre = req.body.nombre;
-  if (!nombre) {
-    return res.status(400).json({ error: 'Falta el nombre de la receta' });
+app.put('/datos', async (req, res) => {
+  try{
+    const contenido = JSON.stringify(req.body || {});
+    await pool.query(`
+      INSERT INTO datos_cocina (id, contenido) VALUES (1, $1)
+      ON CONFLICT (id) DO UPDATE SET contenido = EXCLUDED.contenido
+    `, [contenido]);
+    console.log('Se guardaron los datos de la cocina en la base de datos');
+    res.json({ mensaje: 'Guardado correctamente' });
+  }catch(err){
+    console.error('Error guardando en la base de datos:', err.message);
+    res.status(500).json({ error: 'No se pudo guardar' });
   }
-  const resultado = db.prepare('INSERT INTO recetas (nombre) VALUES (?)').run(nombre);
-  const nueva = { id: resultado.lastInsertRowid, nombre };
-  console.log('Se guardó en el archivo una receta nueva:', nombre);
-  res.status(201).json(nueva);
-});
-
-// ------------------------------------------------------------------
-// RUTA TEMPORAL SOLO PARA PROBAR DESDE EL NAVEGADOR (sin Postman/curl).
-// Uso: /recetas/agregar?nombre=Milanesa
-// Esto NO se hace así en una app real (se usa POST), pero nos sirve
-// ahora para verificar que la despensa guarda datos de verdad.
-// ------------------------------------------------------------------
-app.get('/recetas/agregar', (req, res) => {
-  const nombre = req.query.nombre;
-  if (!nombre) {
-    return res.status(400).send('Agregá ?nombre=ALGO al final de la dirección');
-  }
-  const resultado = db.prepare('INSERT INTO recetas (nombre) VALUES (?)').run(nombre);
-  res.json({ id: resultado.lastInsertRowid, nombre, mensaje: 'Guardado correctamente' });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`La cocina está prendida y escuchando en el puerto ${PORT}`);
-  console.log('La despensa es el archivo: datos.db');
 });
