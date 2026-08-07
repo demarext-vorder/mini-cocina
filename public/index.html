@@ -404,6 +404,23 @@
 
   .no-entries{ padding:16px 22px; color:var(--ink-soft); font-size:13px; }
 
+  .horario-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:9px 0;
+    border-bottom:1px solid var(--paper-dark);
+  }
+  .horario-row:last-child{ border-bottom:none; }
+  .horario-row .dia{
+    width:90px;
+    flex-shrink:0;
+    font-weight:600;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .horario-row select{ flex:1; }
+
   .toolbar{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:end; }
   .toolbar .field{ margin-bottom:0; flex:1; min-width:140px; }
 
@@ -464,7 +481,8 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="recetario">Recetario</button>
-    <button class="tab-btn" data-tab="planilla">Planilla del día</button>
+    <button class="tab-btn" data-tab="menues">Menúes</button>
+    <button class="tab-btn" data-tab="listas">Listas</button>
     <button class="tab-btn" data-tab="imprimir">Imprimir</button>
   </nav>
 
@@ -500,16 +518,73 @@
     </div>
   </section>
 
-  <!-- ================= PLANILLA DEL DIA ================= -->
-  <section class="panel" id="panel-planilla">
+  <!-- ================= MENÚES ================= -->
+  <section class="panel" id="panel-menues">
     <div class="card">
-      <div class="toolbar">
+      <h2><span class="n">+</span> Nuevo menú</h2>
+      <div class="row">
         <div class="field">
-          <label>Fecha de la planilla</label>
-          <input type="date" id="menuDate">
+          <label>Nombre del menú</label>
+          <input type="text" id="newMenuName" placeholder="Ej: Almuerzo Pacientes Domingo">
+        </div>
+        <div class="field" style="max-width:220px">
+          <label>Grupo</label>
+          <select id="newMenuGrupo">
+            <option value="PACIENTE ALMUERZO">Paciente Almuerzo</option>
+            <option value="PACIENTE CENA">Paciente Cena</option>
+            <option value="PERSONAL ALMUERZO">Personal Almuerzo</option>
+            <option value="PERSONAL CENA">Personal Cena</option>
+          </select>
         </div>
       </div>
-      <div id="gruposContainer"></div>
+      <label style="margin-top:4px">Platos del menú (con sus raciones)</label>
+      <div id="menuItemsBuilder"></div>
+      <div class="add-entry" style="margin-top:6px;">
+        <select id="menuItemRecipeSel"><option value="">Elegir receta...</option></select>
+        <input type="number" min="1" id="menuItemRac" placeholder="Rac.">
+        <button class="btn btn-small btn-primary" id="addMenuItemBtn">+ Agregar</button>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button class="btn btn-primary" id="saveMenuBtn">Guardar menú</button>
+        <button class="btn btn-ghost" id="clearMenuForm">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n" id="menuCount">0</span> Menúes guardados</h2>
+      <div id="menuList" class="recipe-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= LISTAS ================= -->
+  <section class="panel" id="panel-listas">
+    <div class="card">
+      <h2><span class="n">+</span> Nueva lista</h2>
+      <div class="field">
+        <label>Nombre de la lista</label>
+        <input type="text" id="newListaName" placeholder="Ej: Semana tipo verano">
+      </div>
+      <label>Menúes incluidos</label>
+      <div id="listaItemsBuilder"></div>
+      <div class="add-entry" style="margin-top:6px;">
+        <select id="listaMenuSel"><option value="">Elegir menú...</option></select>
+        <button class="btn btn-small btn-primary" id="addListaMenuBtn">+ Agregar</button>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button class="btn btn-primary" id="saveListaBtn">Guardar lista</button>
+        <button class="btn btn-ghost" id="clearListaForm">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n" id="listaCount">0</span> Listas guardadas</h2>
+      <div id="listaList" class="recipe-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>📅 Horario semanal</h2>
+      <div class="subtitle" style="margin-bottom:12px;">Elegí qué lista corresponde a cada día. Se repite automáticamente todas las semanas.</div>
+      <div id="horarioBuilder"></div>
     </div>
   </section>
 
@@ -535,8 +610,14 @@ function initApp(){
   const UNITS = ["kg","gr","lt","ml","uni","atado","pizca"];
 
   let recipes = [];
-  let menusByDate = {}; // fecha -> [{id, grupo, recipeId, raciones}]
+  let menus = [];        // [{id, nombre, grupo, items:[{recipeId, raciones}]}]
+  let listas = [];       // [{id, nombre, menuIds:[...]}]
+  let horario = {};      // {0:listaId, 1:listaId, ...} 0=Domingo ... 6=Sábado (igual a Date.getDay())
+  let menusByDate = {};  // ya no se usa para armar la planilla, se deja solo por compatibilidad
   let currentIngRows = [];
+  let currentMenuItems = [];   // para el formulario de "Nuevo menú"
+  let currentListaMenuIds = []; // para el formulario de "Nueva lista"
+  const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
@@ -574,12 +655,14 @@ function initApp(){
       if(!resp.ok) throw new Error('Respuesta no válida del servidor');
       const data = await resp.json();
       recipes = Array.isArray(data.recipes) ? data.recipes : [];
+      menus = Array.isArray(data.menus) ? data.menus : [];
+      listas = Array.isArray(data.listas) ? data.listas : [];
+      horario = (data.horario && typeof data.horario === 'object') ? data.horario : {};
       menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
       connStatus.textContent = 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.';
     }catch(e){
       console.error('No se pudo conectar con el servidor', e);
-      recipes = [];
-      menusByDate = {};
+      recipes = []; menus = []; listas = []; horario = {}; menusByDate = {};
       connStatus.textContent = 'Sin conexión con el servidor. Revisá tu internet y recargá la página.';
     }
   }
@@ -593,7 +676,7 @@ function initApp(){
           'Content-Type': 'application/json',
           'X-App-Password': appPassword || ''
         },
-        body: JSON.stringify({ recipes, menusByDate })
+        body: JSON.stringify({ recipes, menus, listas, horario, menusByDate })
       });
       if(resp.status === 401){
         appPassword = null;
@@ -617,6 +700,15 @@ function initApp(){
   async function saveMenus(){
     await persistAll();
   }
+  async function saveMenusData(){
+    await persistAll();
+  }
+  async function saveListas(){
+    await persistAll();
+  }
+  async function saveHorario(){
+    await persistAll();
+  }
 
   // ---------- Tabs ----------
   $$('.tab-btn').forEach(btn=>{
@@ -625,7 +717,8 @@ function initApp(){
       $$('.panel').forEach(p=>p.classList.remove('active'));
       btn.classList.add('active');
       $('#panel-'+btn.dataset.tab).classList.add('active');
-      if(btn.dataset.tab === 'planilla') renderGrupos();
+      if(btn.dataset.tab === 'menues') renderMenuList();
+      if(btn.dataset.tab === 'listas'){ renderListaList(); renderHorario(); }
       if(btn.dataset.tab === 'imprimir') renderPrintArea();
     });
   });
@@ -747,95 +840,293 @@ function initApp(){
   }
 
   async function deleteRecipe(id){
-    if(!confirm('¿Borrar esta receta? También se va a quitar de las planillas donde esté cargada.')) return;
+    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida.')) return;
     recipes = recipes.filter(r=>r.id!==id);
+    menus.forEach(m=>{ m.items = m.items.filter(it=>it.recipeId!==id); });
     await saveRecipes();
-    // limpiar referencias en menús
-    Object.keys(menusByDate).forEach(fecha=>{
-      menusByDate[fecha] = menusByDate[fecha].filter(e=>e.recipeId!==id);
-    });
-    await saveMenus();
     renderRecipeList();
   }
 
-  // ---------- Planilla del día ----------
-  $('#menuDate').value = todayISO();
-  $('#menuDate').addEventListener('change', renderGrupos);
-
-  function getRecipesForGroup(grupo){
+  // ---------- MENÚES ----------
+  function poblarSelectRecetas(){
+    const grupo = $('#newMenuGrupo').value;
     const tipo = grupo.startsWith('PACIENTE') ? 'pacientes' : 'personal';
-    return recipes.filter(r => r.group === tipo);
+    const opciones = recipes.filter(r => r.group === tipo);
+    const sel = $('#menuItemRecipeSel');
+    sel.innerHTML = '<option value="">Elegir receta...</option>' +
+      opciones.map(o=>`<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('');
   }
+  $('#newMenuGrupo').addEventListener('change', poblarSelectRecetas);
 
-  function renderGrupos(){
-    const fecha = $('#menuDate').value || todayISO();
-    const cont = $('#gruposContainer');
-    cont.innerHTML = '';
-    if(recipes.length===0){
-      cont.innerHTML = '<div class="empty">Cargá primero algunas recetas en la pestaña <b>Recetario</b> para poder armar la planilla.</div>';
+  function renderMenuItemsBuilder(){
+    const box = $('#menuItemsBuilder');
+    if(currentMenuItems.length === 0){
+      box.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0;">Todavía no agregaste ningún plato.</div>';
       return;
     }
-    const entries = menusByDate[fecha] || [];
-
-    GRUPOS.forEach(grupo=>{
-      const block = document.createElement('div');
-      block.className = 'grupo-block';
-      const opciones = getRecipesForGroup(grupo);
-      const groupEntries = entries.filter(e=>e.grupo===grupo);
-
-      block.innerHTML = `
-        <div class="grupo-title">${grupo}</div>
-        <div class="grupo-body">
-          <div class="entries-box"></div>
-          <div class="add-entry">
-            <select class="sel-recipe">
-              <option value="">Elegir plato...</option>
-              ${opciones.map(o=>`<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('')}
-            </select>
-            <input type="number" min="1" class="inp-rac" placeholder="Rac.">
-            <button class="btn btn-small btn-primary btn-add">+ Agregar</button>
-          </div>
-        </div>
+    box.innerHTML = '';
+    currentMenuItems.forEach((item, idx)=>{
+      const rec = recipes.find(r=>r.id===item.recipeId);
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+      row.innerHTML = `
+        <span><span class="rac">${item.raciones} rac.</span>${escapeHtml(rec ? rec.name : '(receta borrada)')}</span>
+        <button class="btn btn-small btn-danger" data-idx="${idx}">Quitar</button>
       `;
-      cont.appendChild(block);
-
-      const entriesBox = $('.entries-box', block);
-      if(groupEntries.length===0){
-        entriesBox.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0 8px;">Sin platos cargados todavía.</div>';
-      } else {
-        groupEntries.forEach(e=>{
-          const rec = recipes.find(r=>r.id===e.recipeId);
-          const row = document.createElement('div');
-          row.className = 'entry-row';
-          row.innerHTML = `
-            <span><span class="rac">${e.raciones} rac.</span>${escapeHtml(rec ? rec.name : '(receta borrada)')}</span>
-            <button class="btn btn-small btn-danger" data-eid="${e.id}">Quitar</button>
-          `;
-          entriesBox.appendChild(row);
-        });
-        $$('[data-eid]', entriesBox).forEach(b=>{
-          b.addEventListener('click', async ()=>{
-            menusByDate[fecha] = (menusByDate[fecha]||[]).filter(x=>x.id!==b.dataset.eid);
-            await saveMenus();
-            renderGrupos();
-          });
-        });
-      }
-
-      $('.btn-add', block).addEventListener('click', async ()=>{
-        const sel = $('.sel-recipe', block);
-        const inp = $('.inp-rac', block);
-        const recipeId = sel.value;
-        const raciones = parseInt(inp.value);
-        if(!recipeId){ alert('Elegí un plato.'); return; }
-        if(!raciones || raciones<=0){ alert('Ingresá la cantidad de raciones.'); return; }
-        if(!menusByDate[fecha]) menusByDate[fecha] = [];
-        menusByDate[fecha].push({id:uid(), grupo, recipeId, raciones});
-        await saveMenus();
-        renderGrupos();
+      box.appendChild(row);
+    });
+    $$('[data-idx]', box).forEach(b=>{
+      b.addEventListener('click', ()=>{
+        currentMenuItems.splice(+b.dataset.idx, 1);
+        renderMenuItemsBuilder();
       });
     });
   }
+
+  $('#addMenuItemBtn').addEventListener('click', ()=>{
+    const recipeId = $('#menuItemRecipeSel').value;
+    const raciones = parseInt($('#menuItemRac').value);
+    if(!recipeId){ alert('Elegí una receta.'); return; }
+    if(!raciones || raciones<=0){ alert('Ingresá la cantidad de raciones.'); return; }
+    currentMenuItems.push({ recipeId, raciones });
+    $('#menuItemRac').value = '';
+    renderMenuItemsBuilder();
+  });
+
+  function resetMenuForm(){
+    $('#newMenuName').value = '';
+    $('#newMenuGrupo').value = 'PACIENTE ALMUERZO';
+    currentMenuItems = [];
+    poblarSelectRecetas();
+    renderMenuItemsBuilder();
+    delete $('#saveMenuBtn').dataset.editing;
+    $('#saveMenuBtn').textContent = 'Guardar menú';
+  }
+  $('#clearMenuForm').addEventListener('click', resetMenuForm);
+
+  $('#saveMenuBtn').addEventListener('click', async ()=>{
+    const nombre = $('#newMenuName').value.trim();
+    if(!nombre){ alert('Poné un nombre para el menú.'); return; }
+    if(currentMenuItems.length === 0){ alert('Agregá al menos un plato al menú.'); return; }
+    const grupo = $('#newMenuGrupo').value;
+    const editingId = $('#saveMenuBtn').dataset.editing;
+    if(editingId){
+      const idx = menus.findIndex(m=>m.id===editingId);
+      if(idx>=0) menus[idx] = { ...menus[idx], nombre, grupo, items: currentMenuItems };
+    } else {
+      menus.push({ id: uid(), nombre, grupo, items: currentMenuItems });
+    }
+    await saveMenusData();
+    resetMenuForm();
+    renderMenuList();
+  });
+
+  function renderMenuList(){
+    const box = $('#menuList');
+    $('#menuCount').textContent = menus.length;
+    if(menus.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no armaste ningún menú.<br>Combiná recetas arriba ↑ para crear el primero.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    menus.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(m=>{
+      const div = document.createElement('div');
+      div.className = 'recipe-chip';
+      const platosPreview = m.items.map(it=>{
+        const rec = recipes.find(r=>r.id===it.recipeId);
+        return `${rec ? rec.name : '(borrada)'} (${it.raciones} rac.)`;
+      }).join(' · ');
+      div.innerHTML = `
+        <div class="info">
+          <b>${escapeHtml(m.nombre)}</b><span class="tag">${m.grupo}</span>
+          <div class="ings">${escapeHtml(platosPreview)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-small btn-ghost" data-act="edit" data-id="${m.id}">Editar</button>
+          <button class="btn btn-small btn-danger" data-act="del" data-id="${m.id}">Borrar</button>
+        </div>
+      `;
+      box.appendChild(div);
+    });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editMenu(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteMenu(b.dataset.id)));
+  }
+
+  function editMenu(id){
+    const m = menus.find(x=>x.id===id);
+    if(!m) return;
+    $('#newMenuName').value = m.nombre;
+    $('#newMenuGrupo').value = m.grupo;
+    poblarSelectRecetas();
+    currentMenuItems = m.items.map(it=>({...it}));
+    renderMenuItemsBuilder();
+    $('#saveMenuBtn').dataset.editing = id;
+    $('#saveMenuBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+    document.querySelector('[data-tab="menues"]').click();
+  }
+
+  async function deleteMenu(id){
+    if(!confirm('¿Borrar este menú? También se va a quitar de las listas donde esté incluido.')) return;
+    menus = menus.filter(m=>m.id!==id);
+    listas.forEach(l=>{ l.menuIds = l.menuIds.filter(mid=>mid!==id); });
+    await saveMenusData();
+    renderMenuList();
+  }
+
+  // ---------- LISTAS ----------
+  function poblarSelectMenus(){
+    const sel = $('#listaMenuSel');
+    sel.innerHTML = '<option value="">Elegir menú...</option>' +
+      menus.map(m=>`<option value="${m.id}">${escapeHtml(m.nombre)} (${m.grupo})</option>`).join('');
+  }
+
+  function renderListaItemsBuilder(){
+    const box = $('#listaItemsBuilder');
+    if(currentListaMenuIds.length === 0){
+      box.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0;">Todavía no agregaste ningún menú.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    currentListaMenuIds.forEach((menuId, idx)=>{
+      const m = menus.find(x=>x.id===menuId);
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+      row.innerHTML = `
+        <span>${escapeHtml(m ? m.nombre : '(menú borrado)')} <span class="tag" style="background:var(--accent-tint);color:var(--accent-dark);border-radius:20px;padding:1px 7px;font-size:10.5px;margin-left:6px;">${m ? m.grupo : ''}</span></span>
+        <button class="btn btn-small btn-danger" data-idx="${idx}">Quitar</button>
+      `;
+      box.appendChild(row);
+    });
+    $$('[data-idx]', box).forEach(b=>{
+      b.addEventListener('click', ()=>{
+        currentListaMenuIds.splice(+b.dataset.idx, 1);
+        renderListaItemsBuilder();
+      });
+    });
+  }
+
+  $('#addListaMenuBtn').addEventListener('click', ()=>{
+    const menuId = $('#listaMenuSel').value;
+    if(!menuId){ alert('Elegí un menú.'); return; }
+    currentListaMenuIds.push(menuId);
+    renderListaItemsBuilder();
+  });
+
+  function resetListaForm(){
+    $('#newListaName').value = '';
+    currentListaMenuIds = [];
+    poblarSelectMenus();
+    renderListaItemsBuilder();
+    delete $('#saveListaBtn').dataset.editing;
+    $('#saveListaBtn').textContent = 'Guardar lista';
+  }
+  $('#clearListaForm').addEventListener('click', resetListaForm);
+
+  $('#saveListaBtn').addEventListener('click', async ()=>{
+    const nombre = $('#newListaName').value.trim();
+    if(!nombre){ alert('Poné un nombre para la lista.'); return; }
+    if(currentListaMenuIds.length === 0){ alert('Agregá al menos un menú a la lista.'); return; }
+    const editingId = $('#saveListaBtn').dataset.editing;
+    if(editingId){
+      const idx = listas.findIndex(l=>l.id===editingId);
+      if(idx>=0) listas[idx] = { ...listas[idx], nombre, menuIds: currentListaMenuIds };
+    } else {
+      listas.push({ id: uid(), nombre, menuIds: currentListaMenuIds });
+    }
+    await saveListas();
+    resetListaForm();
+    renderListaList();
+    renderHorario();
+  });
+
+  function renderListaList(){
+    poblarSelectMenus();
+    const box = $('#listaList');
+    $('#listaCount').textContent = listas.length;
+    if(listas.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no armaste ninguna lista.<br>Combiná menúes arriba ↑ para crear la primera.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    listas.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(l=>{
+      const div = document.createElement('div');
+      div.className = 'recipe-chip';
+      const menusPreview = l.menuIds.map(mid=>{
+        const m = menus.find(x=>x.id===mid);
+        return m ? m.nombre : '(borrado)';
+      }).join(' · ');
+      div.innerHTML = `
+        <div class="info">
+          <b>${escapeHtml(l.nombre)}</b>
+          <div class="ings">${escapeHtml(menusPreview)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-small btn-ghost" data-act="edit" data-id="${l.id}">Editar</button>
+          <button class="btn btn-small btn-danger" data-act="del" data-id="${l.id}">Borrar</button>
+        </div>
+      `;
+      box.appendChild(div);
+    });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editLista(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteLista(b.dataset.id)));
+  }
+
+  function editLista(id){
+    const l = listas.find(x=>x.id===id);
+    if(!l) return;
+    $('#newListaName').value = l.nombre;
+    poblarSelectMenus();
+    currentListaMenuIds = [...l.menuIds];
+    renderListaItemsBuilder();
+    $('#saveListaBtn').dataset.editing = id;
+    $('#saveListaBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+    document.querySelector('[data-tab="listas"]').click();
+  }
+
+  async function deleteLista(id){
+    if(!confirm('¿Borrar esta lista? También se va a quitar del horario semanal donde esté asignada.')) return;
+    listas = listas.filter(l=>l.id!==id);
+    Object.keys(horario).forEach(dia=>{
+      if(horario[dia] === id) delete horario[dia];
+    });
+    await saveListas();
+    renderListaList();
+    renderHorario();
+  }
+
+  // ---------- HORARIO SEMANAL ----------
+  function renderHorario(){
+    const box = $('#horarioBuilder');
+    if(listas.length === 0){
+      box.innerHTML = '<div class="empty">Armá al menos una lista arriba ↑ para poder asignarla a los días de la semana.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    DIAS_SEMANA.forEach((nombreDia, idx)=>{
+      const row = document.createElement('div');
+      row.className = 'horario-row';
+      const seleccion = horario[idx] || '';
+      row.innerHTML = `
+        <span class="dia">${nombreDia}</span>
+        <select data-dia="${idx}">
+          <option value="">Sin asignar</option>
+          ${listas.map(l=>`<option value="${l.id}" ${l.id===seleccion?'selected':''}>${escapeHtml(l.nombre)}</option>`).join('')}
+        </select>
+      `;
+      box.appendChild(row);
+    });
+    $$('select[data-dia]', box).forEach(sel=>{
+      sel.addEventListener('change', async ()=>{
+        const dia = sel.dataset.dia;
+        if(sel.value) horario[dia] = sel.value;
+        else delete horario[dia];
+        await saveHorario();
+      });
+    });
+  }
+
 
   // ---------- Imprimir ----------
   $('#printDate').value = todayISO();
@@ -844,22 +1135,49 @@ function initApp(){
 
   function renderPrintArea(){
     const fecha = $('#printDate').value || todayISO();
-    const entries = menusByDate[fecha] || [];
     const area = $('#printArea');
+
+    // 1) ¿Qué día de la semana es esa fecha? (0=Domingo...6=Sábado)
+    const diaSemana = new Date(fecha + 'T00:00:00').getDay();
+    const listaId = horario[diaSemana];
+    const lista = listaId ? listas.find(l => l.id === listaId) : null;
+
+    // 2) Juntamos todos los platos de todos los menúes de esa lista,
+    //    agrupados por grupo (PACIENTE ALMUERZO, etc.), sumando raciones
+    //    si el mismo plato aparece en más de un menú del mismo grupo.
+    const entriesPorGrupo = {};
+    GRUPOS.forEach(g => entriesPorGrupo[g] = []);
+
+    if(lista){
+      lista.menuIds.forEach(menuId=>{
+        const menu = menus.find(m=>m.id===menuId);
+        if(!menu || !GRUPOS.includes(menu.grupo)) return;
+        menu.items.forEach(it=>{
+          entriesPorGrupo[menu.grupo].push(it);
+        });
+      });
+    }
 
     let html = `<div class="sheet">
       <div class="sheet-head">
         <div class="title">Planilla de Producción</div>
-        <div class="date">${fmtDateHuman(fecha)}</div>
-      </div>
-      <div class="sheet-columns">`;
+        <div class="date">${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(fecha)}</div>
+      </div>`;
+
+    if(!lista){
+      html += `<div class="no-entries">No hay ninguna lista asignada a los "${DIAS_SEMANA[diaSemana]}". Andá a la pestaña "Listas" → "Horario semanal" para asignar una.</div></div>`;
+      area.innerHTML = html;
+      return;
+    }
+
+    html += `<div class="sheet-columns">`;
 
     GRUPOS.forEach(grupo=>{
-      const groupEntries = entries.filter(e=>e.grupo===grupo);
+      const groupEntries = entriesPorGrupo[grupo];
       html += `<div class="sheet-group">
         <div class="sheet-group-title">${grupo}</div>`;
       if(groupEntries.length===0){
-        html += `<div class="no-entries">Sin platos cargados para este grupo.</div>`;
+        html += `<div class="no-entries">Sin platos para este grupo en la lista "${escapeHtml(lista.nombre)}".</div>`;
       } else {
         groupEntries.forEach(e=>{
           const rec = recipes.find(r=>r.id===e.recipeId);
@@ -883,7 +1201,9 @@ function initApp(){
       html += `</div>`;
     });
 
-    html += `</div></div>`;
+    html += `</div>
+      <div class="no-entries">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
+    </div>`;
     area.innerHTML = html;
   }
 
@@ -896,8 +1216,9 @@ function initApp(){
       currentIngRows = [];
       addIngRow();
     }
+    resetMenuForm();
+    resetListaForm();
     renderRecipeList();
-    renderGrupos();
     renderPrintArea();
   })();
 
