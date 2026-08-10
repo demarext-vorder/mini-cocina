@@ -395,6 +395,40 @@
   .ms-option input{ width:auto; flex:none; accent-color:var(--accent); }
   .ms-empty{ padding:8px 6px; color:var(--ink-soft); font-size:12.5px; }
 
+  /* --- Modal (ventana emergente) --- */
+  .modal-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(32,33,36,.5);
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    padding:16px;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal-card{
+    background:var(--surface);
+    border-radius:16px;
+    padding:22px;
+    max-width:440px;
+    width:100%;
+    max-height:85vh;
+    overflow-y:auto;
+    box-shadow:var(--elev-3);
+  }
+  .modal-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:9px 0;
+    border-bottom:1px solid var(--paper-dark);
+  }
+  .modal-row:last-child{ border-bottom:none; }
+  .modal-row .nombre{ font-size:13.5px; font-weight:500; flex:1; }
+  .modal-row input{ width:80px; flex:none; text-align:center; }
+
   /* --- Print sheet preview --- */
   .sheet{
     background:var(--surface);
@@ -593,7 +627,6 @@
           <button type="button" class="ms-toggle" id="menuItemRecipeToggle">Elegir recetas...</button>
           <div class="ms-panel" id="menuItemRecipePanel"></div>
         </div>
-        <input type="number" min="1" id="menuItemRac" placeholder="Rac.">
         <button class="btn btn-small btn-primary" id="addMenuItemBtn">+ Agregar</button>
       </div>
       <div style="margin-top:12px; display:flex; gap:8px;">
@@ -651,6 +684,19 @@
     </div>
     <div id="printArea"></div>
   </section>
+
+  <!-- ================= MODAL: raciones por receta ================= -->
+  <div class="modal-overlay" id="racionesModalOverlay">
+    <div class="modal-card">
+      <h2 style="margin:0 0 4px;">Cantidad de raciones</h2>
+      <div class="subtitle" style="margin-bottom:14px;">Indicá cuántas raciones de cada plato va a llevar este menú.</div>
+      <div id="racionesModalList"></div>
+      <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-ghost" id="racionesModalCancel">Cancelar</button>
+        <button class="btn btn-primary" id="racionesModalConfirm">Agregar al menú</button>
+      </div>
+    </div>
+  </div>
 
 </div>
 </div>
@@ -975,18 +1021,53 @@ function initApp(){
     });
   }
 
+  function abrirModalRaciones(){
+    const lista = recetasSeleccionadasMS
+      .map(id => recipes.find(r=>r.id===id))
+      .filter(Boolean);
+    const box = $('#racionesModalList');
+    box.innerHTML = lista.map(r => `
+      <div class="modal-row">
+        <span class="nombre">${escapeHtml(r.name)}</span>
+        <input type="number" min="1" placeholder="Rac." data-recipe-id="${r.id}">
+      </div>
+    `).join('');
+    $('#racionesModalOverlay').classList.add('open');
+    const primerInput = box.querySelector('input');
+    if(primerInput) primerInput.focus();
+  }
+
+  function cerrarModalRaciones(){
+    $('#racionesModalOverlay').classList.remove('open');
+  }
+
   $('#addMenuItemBtn').addEventListener('click', ()=>{
-    const raciones = parseInt($('#menuItemRac').value);
     if(recetasSeleccionadasMS.length === 0){ alert('Tildá al menos una receta.'); return; }
-    if(!raciones || raciones<=0){ alert('Ingresá la cantidad de raciones (se aplica a todas las recetas tildadas).'); return; }
-    recetasSeleccionadasMS.forEach(recipeId=>{
-      currentMenuItems.push({ recipeId, raciones });
-    });
-    recetasSeleccionadasMS = [];
-    $('#menuItemRac').value = '';
     $('#menuItemRecipePanel').classList.remove('open');
+    abrirModalRaciones();
+  });
+
+  $('#racionesModalCancel').addEventListener('click', cerrarModalRaciones);
+  $('#racionesModalOverlay').addEventListener('click', (e)=>{
+    if(e.target.id === 'racionesModalOverlay') cerrarModalRaciones();
+  });
+
+  $('#racionesModalConfirm').addEventListener('click', ()=>{
+    const inputs = $$('#racionesModalList input[data-recipe-id]');
+    const valores = inputs.map(inp => ({
+      recipeId: inp.dataset.recipeId,
+      raciones: parseInt(inp.value)
+    }));
+    const invalido = valores.find(v => !v.raciones || v.raciones <= 0);
+    if(invalido){
+      alert('Completá la cantidad de raciones para cada plato (un número mayor a 0).');
+      return;
+    }
+    valores.forEach(v => currentMenuItems.push(v));
+    recetasSeleccionadasMS = [];
     poblarSelectRecetas();
     renderMenuItemsBuilder();
+    cerrarModalRaciones();
   });
 
   function resetMenuForm(){
