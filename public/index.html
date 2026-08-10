@@ -346,6 +346,55 @@
   .add-entry input{ flex:0 0 60px; }
   .add-entry button{ flex:0 0 auto; }
 
+  /* --- Desplegable de selección múltiple (checkboxes) --- */
+  .ms-dropdown{ position:relative; flex:2; min-width:0; }
+  .ms-toggle{
+    width:100%;
+    text-align:left;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:var(--surface);
+    font-family:var(--font);
+    font-size:14px;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .ms-toggle::after{
+    content:'▾';
+    float:right;
+    color:var(--ink-soft);
+  }
+  .ms-toggle.has-selection{ color:var(--accent-dark); font-weight:600; }
+  .ms-panel{
+    display:none;
+    position:absolute;
+    top:calc(100% + 4px);
+    left:0;
+    right:0;
+    max-height:220px;
+    overflow-y:auto;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    box-shadow:var(--elev-2);
+    z-index:20;
+    padding:6px;
+  }
+  .ms-panel.open{ display:block; }
+  .ms-option{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 6px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:13.5px;
+  }
+  .ms-option:hover{ background:var(--paper); }
+  .ms-option input{ width:auto; flex:none; accent-color:var(--accent); }
+  .ms-empty{ padding:8px 6px; color:var(--ink-soft); font-size:12.5px; }
+
   /* --- Print sheet preview --- */
   .sheet{
     background:var(--surface);
@@ -539,8 +588,11 @@
       </div>
       <label style="margin-top:4px">Platos del menú (con sus raciones)</label>
       <div id="menuItemsBuilder"></div>
-      <div class="add-entry" style="margin-top:6px;">
-        <select id="menuItemRecipeSel"><option value="">Elegir receta...</option></select>
+      <div class="add-entry" style="margin-top:6px; position:relative;">
+        <div class="ms-dropdown" id="menuItemRecipeMS">
+          <button type="button" class="ms-toggle" id="menuItemRecipeToggle">Elegir recetas...</button>
+          <div class="ms-panel" id="menuItemRecipePanel"></div>
+        </div>
         <input type="number" min="1" id="menuItemRac" placeholder="Rac.">
         <button class="btn btn-small btn-primary" id="addMenuItemBtn">+ Agregar</button>
       </div>
@@ -848,15 +900,55 @@ function initApp(){
   }
 
   // ---------- MENÚES ----------
+  let recetasSeleccionadasMS = []; // ids tildados en el desplegable de "Elegir recetas..."
+
   function poblarSelectRecetas(){
     const grupo = $('#newMenuGrupo').value;
     const tipo = grupo.startsWith('PACIENTE') ? 'pacientes' : 'personal';
     const opciones = recipes.filter(r => r.group === tipo);
-    const sel = $('#menuItemRecipeSel');
-    sel.innerHTML = '<option value="">Elegir receta...</option>' +
-      opciones.map(o=>`<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('');
+    recetasSeleccionadasMS = recetasSeleccionadasMS.filter(id => opciones.some(o=>o.id===id));
+
+    const panel = $('#menuItemRecipePanel');
+    if(opciones.length === 0){
+      panel.innerHTML = '<div class="ms-empty">No hay recetas cargadas para este grupo todavía.</div>';
+    } else {
+      panel.innerHTML = opciones.map(o => `
+        <label class="ms-option">
+          <input type="checkbox" value="${o.id}" ${recetasSeleccionadasMS.includes(o.id) ? 'checked' : ''}>
+          ${escapeHtml(o.name)}
+        </label>
+      `).join('');
+      $$('input[type=checkbox]', panel).forEach(cb=>{
+        cb.addEventListener('change', ()=>{
+          if(cb.checked) recetasSeleccionadasMS.push(cb.value);
+          else recetasSeleccionadasMS = recetasSeleccionadasMS.filter(id=>id!==cb.value);
+          actualizarTextoToggleMS();
+        });
+      });
+    }
+    actualizarTextoToggleMS();
   }
   $('#newMenuGrupo').addEventListener('change', poblarSelectRecetas);
+
+  function actualizarTextoToggleMS(){
+    const toggle = $('#menuItemRecipeToggle');
+    if(recetasSeleccionadasMS.length === 0){
+      toggle.textContent = 'Elegir recetas...';
+      toggle.classList.remove('has-selection');
+    } else {
+      toggle.textContent = `${recetasSeleccionadasMS.length} receta(s) seleccionada(s)`;
+      toggle.classList.add('has-selection');
+    }
+  }
+
+  $('#menuItemRecipeToggle').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    $('#menuItemRecipePanel').classList.toggle('open');
+  });
+  document.addEventListener('click', (e)=>{
+    const ms = $('#menuItemRecipeMS');
+    if(ms && !ms.contains(e.target)) $('#menuItemRecipePanel').classList.remove('open');
+  });
 
   function renderMenuItemsBuilder(){
     const box = $('#menuItemsBuilder');
@@ -884,12 +976,16 @@ function initApp(){
   }
 
   $('#addMenuItemBtn').addEventListener('click', ()=>{
-    const recipeId = $('#menuItemRecipeSel').value;
     const raciones = parseInt($('#menuItemRac').value);
-    if(!recipeId){ alert('Elegí una receta.'); return; }
-    if(!raciones || raciones<=0){ alert('Ingresá la cantidad de raciones.'); return; }
-    currentMenuItems.push({ recipeId, raciones });
+    if(recetasSeleccionadasMS.length === 0){ alert('Tildá al menos una receta.'); return; }
+    if(!raciones || raciones<=0){ alert('Ingresá la cantidad de raciones (se aplica a todas las recetas tildadas).'); return; }
+    recetasSeleccionadasMS.forEach(recipeId=>{
+      currentMenuItems.push({ recipeId, raciones });
+    });
+    recetasSeleccionadasMS = [];
     $('#menuItemRac').value = '';
+    $('#menuItemRecipePanel').classList.remove('open');
+    poblarSelectRecetas();
     renderMenuItemsBuilder();
   });
 
@@ -897,6 +993,7 @@ function initApp(){
     $('#newMenuName').value = '';
     $('#newMenuGrupo').value = 'PACIENTE ALMUERZO';
     currentMenuItems = [];
+    recetasSeleccionadasMS = [];
     poblarSelectRecetas();
     renderMenuItemsBuilder();
     delete $('#saveMenuBtn').dataset.editing;
@@ -957,6 +1054,7 @@ function initApp(){
     if(!m) return;
     $('#newMenuName').value = m.nombre;
     $('#newMenuGrupo').value = m.grupo;
+    recetasSeleccionadasMS = [];
     poblarSelectRecetas();
     currentMenuItems = m.items.map(it=>({...it}));
     renderMenuItemsBuilder();
