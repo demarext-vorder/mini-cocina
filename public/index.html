@@ -248,6 +248,7 @@
     align-items:center;
   }
   .ing-row input{ padding:8px 9px; font-size:13.5px; }
+  .ing-name-wrap{ position:relative; min-width:0; }
   .ing-row .rm{
     background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--danger);font-size:16px;cursor:pointer;line-height:1;height:100%;
   }
@@ -828,6 +829,12 @@ function initApp(){
     currentIngRows.push(row);
     renderIngBuilder();
   }
+  function nombresIngredientesUnicos(){
+    const set = new Set();
+    recipes.forEach(r => r.ingredients.forEach(i => set.add(i.name)));
+    return Array.from(set);
+  }
+
   function renderIngBuilder(){
     const box = $('#ingredientsBuilder');
     box.innerHTML = '';
@@ -835,7 +842,10 @@ function initApp(){
       const div = document.createElement('div');
       div.className = 'ing-row';
       div.innerHTML = `
-        <input type="text" placeholder="Ingrediente (ej: Cebolla)" value="${escapeHtml(row.name)}" data-idx="${idx}" data-f="name">
+        <div class="ing-name-wrap">
+          <input type="text" placeholder="Ingrediente (ej: Cebolla)" value="${escapeHtml(row.name)}" data-idx="${idx}" data-f="name" autocomplete="off">
+          <div class="ms-panel ing-suggest"></div>
+        </div>
         <input type="number" step="0.001" placeholder="Cant." value="${row.qty}" data-idx="${idx}" data-f="qty">
         <select data-idx="${idx}" data-f="unit">
           ${UNITS.map(u=>`<option value="${u}" ${u===row.unit?'selected':''}>${u}</option>`).join('')}
@@ -858,7 +868,46 @@ function initApp(){
         renderIngBuilder();
       });
     });
+
+    // ---------- Autocompletado del nombre de ingrediente (solo primeras 4 letras) ----------
+    $$('.ing-name-wrap input[data-f="name"]', box).forEach(input=>{
+      const panel = input.parentElement.querySelector('.ing-suggest');
+      input.addEventListener('input', ()=>{
+        const texto = input.value.trim();
+        if(texto.length === 0 || texto.length > 4){
+          panel.classList.remove('open');
+          panel.innerHTML = '';
+          return;
+        }
+        const coincidencias = nombresIngredientesUnicos().filter(n =>
+          n.toLowerCase().startsWith(texto.toLowerCase())
+        ).slice(0, 8);
+        if(coincidencias.length === 0){
+          panel.classList.remove('open');
+          panel.innerHTML = '';
+          return;
+        }
+        panel.innerHTML = coincidencias.map(n => `
+          <div class="ms-option" data-name="${escapeHtml(n)}">${escapeHtml(n)}</div>
+        `).join('');
+        panel.classList.add('open');
+        $$('.ms-option', panel).forEach(opt=>{
+          opt.addEventListener('click', ()=>{
+            input.value = opt.dataset.name;
+            const idx = +input.dataset.idx;
+            currentIngRows[idx].name = opt.dataset.name;
+            panel.classList.remove('open');
+            panel.innerHTML = '';
+          });
+        });
+      });
+    });
   }
+  document.addEventListener('click', (e)=>{
+    $$('.ing-suggest.open').forEach(panel=>{
+      if(!panel.parentElement.contains(e.target)) panel.classList.remove('open');
+    });
+  });
   $('#addIngRow').addEventListener('click', ()=> addIngRow());
 
   function escapeHtml(s){
