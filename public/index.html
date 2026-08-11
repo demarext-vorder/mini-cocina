@@ -574,9 +574,10 @@
     <div class="card">
       <h2><span class="n">+</span> Nueva receta</h2>
       <div class="row">
-        <div class="field">
+        <div class="field" style="position:relative;">
           <label>Nombre del plato</label>
-          <input type="text" id="newRecipeName" placeholder="Ej: Puré de batatas">
+          <input type="text" id="newRecipeName" placeholder="Ej: Puré de batatas" autocomplete="off">
+          <div class="ms-panel" id="recipeNameSuggest"></div>
         </div>
         <div class="field" style="max-width:170px">
           <label>Se sirve en</label>
@@ -864,6 +865,43 @@ function initApp(){
     return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  // ---------- Autocompletado del nombre de receta (solo primeras 4 letras) ----------
+  const nombreInput = $('#newRecipeName');
+  const nombreSuggest = $('#recipeNameSuggest');
+
+  nombreInput.addEventListener('input', ()=>{
+    const texto = nombreInput.value.trim();
+    if(texto.length === 0 || texto.length > 4){
+      nombreSuggest.classList.remove('open');
+      nombreSuggest.innerHTML = '';
+      return;
+    }
+    const coincidencias = recipes.filter(r =>
+      r.name.toLowerCase().startsWith(texto.toLowerCase())
+    ).slice(0, 8);
+    if(coincidencias.length === 0){
+      nombreSuggest.classList.remove('open');
+      nombreSuggest.innerHTML = '';
+      return;
+    }
+    nombreSuggest.innerHTML = coincidencias.map(r => `
+      <div class="ms-option" data-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+    `).join('');
+    nombreSuggest.classList.add('open');
+    $$('.ms-option', nombreSuggest).forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        nombreInput.value = opt.dataset.name;
+        nombreSuggest.classList.remove('open');
+        nombreSuggest.innerHTML = '';
+      });
+    });
+  });
+  document.addEventListener('click', (e)=>{
+    if(e.target !== nombreInput && !nombreSuggest.contains(e.target)){
+      nombreSuggest.classList.remove('open');
+    }
+  });
+
   $('#clearRecipeForm').addEventListener('click', resetRecipeForm);
   function resetRecipeForm(){
     $('#newRecipeName').value = '';
@@ -872,6 +910,8 @@ function initApp(){
     addIngRow();
     delete $('#saveRecipeBtn').dataset.editing;
     $('#saveRecipeBtn').textContent = 'Guardar receta';
+    nombreSuggest.classList.remove('open');
+    nombreSuggest.innerHTML = '';
   }
 
   $('#saveRecipeBtn').addEventListener('click', async ()=>{
