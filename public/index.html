@@ -653,8 +653,11 @@
       </div>
       <label>Menúes incluidos</label>
       <div id="listaItemsBuilder"></div>
-      <div class="add-entry" style="margin-top:6px;">
-        <select id="listaMenuSel"><option value="">Elegir menú...</option></select>
+      <div class="add-entry" style="margin-top:6px; position:relative;">
+        <div class="ms-dropdown" id="listaMenuMS">
+          <button type="button" class="ms-toggle" id="listaMenuToggle">Elegir menúes...</button>
+          <div class="ms-panel" id="listaMenuPanel"></div>
+        </div>
         <button class="btn btn-small btn-primary" id="addListaMenuBtn">+ Agregar</button>
       </div>
       <div style="margin-top:12px; display:flex; gap:8px;">
@@ -1243,11 +1246,50 @@ function initApp(){
   }
 
   // ---------- LISTAS ----------
+  let menusSeleccionadosMS = []; // ids tildados en el desplegable de "Elegir menúes..."
+
   function poblarSelectMenus(){
-    const sel = $('#listaMenuSel');
-    sel.innerHTML = '<option value="">Elegir menú...</option>' +
-      menus.map(m=>`<option value="${m.id}">${escapeHtml(m.nombre)} (${m.grupo})</option>`).join('');
+    menusSeleccionadosMS = menusSeleccionadosMS.filter(id => menus.some(m=>m.id===id));
+    const panel = $('#listaMenuPanel');
+    if(menus.length === 0){
+      panel.innerHTML = '<div class="ms-empty">No hay menúes cargados todavía. Andá a la pestaña "Menúes" para crear alguno.</div>';
+    } else {
+      panel.innerHTML = menus.map(m => `
+        <label class="ms-option">
+          <input type="checkbox" value="${m.id}" ${menusSeleccionadosMS.includes(m.id) ? 'checked' : ''}>
+          ${escapeHtml(m.nombre)} <span class="tag" style="background:var(--accent-tint);color:var(--accent-dark);border-radius:20px;padding:1px 7px;font-size:10px;margin-left:4px;">${m.grupo}</span>
+        </label>
+      `).join('');
+      $$('input[type=checkbox]', panel).forEach(cb=>{
+        cb.addEventListener('change', ()=>{
+          if(cb.checked) menusSeleccionadosMS.push(cb.value);
+          else menusSeleccionadosMS = menusSeleccionadosMS.filter(id=>id!==cb.value);
+          actualizarTextoToggleListaMS();
+        });
+      });
+    }
+    actualizarTextoToggleListaMS();
   }
+
+  function actualizarTextoToggleListaMS(){
+    const toggle = $('#listaMenuToggle');
+    if(menusSeleccionadosMS.length === 0){
+      toggle.textContent = 'Elegir menúes...';
+      toggle.classList.remove('has-selection');
+    } else {
+      toggle.textContent = `${menusSeleccionadosMS.length} menú(es) seleccionado(s)`;
+      toggle.classList.add('has-selection');
+    }
+  }
+
+  $('#listaMenuToggle').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    $('#listaMenuPanel').classList.toggle('open');
+  });
+  document.addEventListener('click', (e)=>{
+    const ms = $('#listaMenuMS');
+    if(ms && !ms.contains(e.target)) $('#listaMenuPanel').classList.remove('open');
+  });
 
   function renderListaItemsBuilder(){
     const box = $('#listaItemsBuilder');
@@ -1275,15 +1317,20 @@ function initApp(){
   }
 
   $('#addListaMenuBtn').addEventListener('click', ()=>{
-    const menuId = $('#listaMenuSel').value;
-    if(!menuId){ alert('Elegí un menú.'); return; }
-    currentListaMenuIds.push(menuId);
+    if(menusSeleccionadosMS.length === 0){ alert('Tildá al menos un menú.'); return; }
+    menusSeleccionadosMS.forEach(menuId=>{
+      if(!currentListaMenuIds.includes(menuId)) currentListaMenuIds.push(menuId);
+    });
+    menusSeleccionadosMS = [];
+    $('#listaMenuPanel').classList.remove('open');
+    poblarSelectMenus();
     renderListaItemsBuilder();
   });
 
   function resetListaForm(){
     $('#newListaName').value = '';
     currentListaMenuIds = [];
+    menusSeleccionadosMS = [];
     poblarSelectMenus();
     renderListaItemsBuilder();
     delete $('#saveListaBtn').dataset.editing;
@@ -1344,6 +1391,7 @@ function initApp(){
     const l = listas.find(x=>x.id===id);
     if(!l) return;
     $('#newListaName').value = l.nombre;
+    menusSeleccionadosMS = [];
     poblarSelectMenus();
     currentListaMenuIds = [...l.menuIds];
     renderListaItemsBuilder();
