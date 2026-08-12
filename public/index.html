@@ -614,9 +614,12 @@
   /* Print styles: dos columnas, limpio y sobrio para ahorrar tinta */
   @media print{
     body{ background:#fff !important; font-size:11px; }
-    body *{ visibility:hidden; }
-    #printArea, #printArea *{ visibility:visible; }
-    #printArea{ position:absolute; top:0; left:0; width:100%; }
+    header.top, .backup-bar, nav.tabs{ display:none !important; }
+    section.panel{ display:none !important; }
+    section.panel#panel-imprimir{ display:block !important; }
+    #panel-imprimir > .card{ display:none !important; }
+    .modal-overlay{ display:none !important; }
+    .app{ max-width:none !important; margin:0 !important; padding:0 !important; }
     #printArea *{ box-shadow:none !important; text-shadow:none !important; }
     .day-toggle{ display:none !important; }
     .day-body{ display:block !important; margin-top:0 !important; }
@@ -651,6 +654,7 @@
     table.ing-table td{ padding:2px 3px !important; }
     table.ing-table thead td{ font-size:8.5px !important; }
     table.ing-table td.qty.total{ color:#000 !important; }
+    .sheet-day{ margin:0 !important; }
     .sheet-day:not(:first-child){ break-before:page; page-break-before:always; }
     .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
     @page{ size:A4; margin:10mm; }
