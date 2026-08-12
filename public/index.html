@@ -439,6 +439,8 @@
     border-radius:16px;
     box-shadow:var(--elev-2);
   }
+  .sheet-day{ margin-bottom:20px; }
+  .sheet-day:last-child{ margin-bottom:0; }
   .sheet-head{
     background:var(--accent);
     color:var(--white);
@@ -602,6 +604,8 @@
     .sheet-dish{ break-inside:avoid; }
     .sheet-group-title{ background:#fff !important; color:#000 !important; }
     table.ing-table td.qty.total{ color:#000 !important; }
+    .sheet-day{ break-inside:avoid; }
+    .sheet-day:not(:first-child){ break-before:page; page-break-before:always; }
     .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
     @page{ margin:10mm; }
   }
@@ -769,8 +773,16 @@
   <section class="panel" id="panel-imprimir">
     <div class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
       <div class="field" style="flex:1; min-width:160px;">
-        <label>Fecha a imprimir</label>
+        <label>Fecha de referencia</label>
         <input type="date" id="printDate">
+      </div>
+      <div class="field" style="max-width:160px;">
+        <label>Rango a imprimir</label>
+        <select id="printRango">
+          <option value="dia">Un día</option>
+          <option value="semana">Una semana</option>
+          <option value="mes">Un mes</option>
+        </select>
       </div>
       <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir planilla</button>
     </div>
@@ -1671,18 +1683,14 @@ function initApp(){
   // ---------- Imprimir ----------
   $('#printDate').value = todayISO();
   $('#printDate').addEventListener('change', renderPrintArea);
+  $('#printRango').addEventListener('change', renderPrintArea);
   $('#doPrintBtn').addEventListener('click', ()=>{ renderPrintArea(); setTimeout(()=>window.print(), 60); });
 
-  function renderPrintArea(){
-    const fecha = $('#printDate').value || todayISO();
-    const area = $('#printArea');
-
+  // Arma el HTML de la hoja de UN solo día (lo que antes era toda renderPrintArea).
+  function construirHojaDelDia(fecha){
     const diaSemana = new Date(fecha + 'T00:00:00').getDay();
     const lista = resolverListaParaFecha(fecha);
 
-    // Juntamos todos los platos de todos los menúes de esa lista,
-    // agrupados por grupo (PACIENTE ALMUERZO, etc.), sumando raciones
-    // si el mismo plato aparece en más de un menú del mismo grupo.
     const entriesPorGrupo = {};
     GRUPOS.forEach(g => entriesPorGrupo[g] = []);
 
@@ -1704,8 +1712,7 @@ function initApp(){
 
     if(!lista){
       html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div>`;
-      area.innerHTML = html;
-      return;
+      return html;
     }
 
     html += `<div class="sheet-columns">`;
@@ -1742,6 +1749,45 @@ function initApp(){
     html += `</div>
       <div class="no-entries">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
     </div>`;
+    return html;
+  }
+
+  // Dada una fecha ISO (YYYY-MM-DD) y un rango ('dia'|'semana'|'mes'),
+  // devuelve el arreglo de fechas ISO a imprimir.
+  function fechasDelRango(fechaRef, rango){
+    const dRef = new Date(fechaRef + 'T00:00:00');
+    const fechas = [];
+    if(rango === 'dia'){
+      fechas.push(fechaRef);
+    } else if(rango === 'semana'){
+      // Semana de Lunes a Domingo
+      const diaSemana = dRef.getDay(); // 0=Domingo...6=Sábado
+      const offsetHastaLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
+      const lunes = new Date(dRef);
+      lunes.setDate(lunes.getDate() + offsetHastaLunes);
+      for(let i=0; i<7; i++){
+        const d = new Date(lunes);
+        d.setDate(d.getDate() + i);
+        fechas.push(d.toISOString().slice(0,10));
+      }
+    } else if(rango === 'mes'){
+      const anio = dRef.getFullYear();
+      const mes = dRef.getMonth();
+      const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+      for(let dia=1; dia<=diasEnMes; dia++){
+        fechas.push(`${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`);
+      }
+    }
+    return fechas;
+  }
+
+  function renderPrintArea(){
+    const fecha = $('#printDate').value || todayISO();
+    const rango = $('#printRango').value || 'dia';
+    const area = $('#printArea');
+
+    const fechas = fechasDelRango(fecha, rango);
+    const html = fechas.map(f => `<div class="sheet-day">${construirHojaDelDia(f)}</div>`).join('');
     area.innerHTML = html;
   }
 
