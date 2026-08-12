@@ -582,13 +582,23 @@
 
   /* Print styles: dos columnas, limpio y sobrio para ahorrar tinta */
   @media print{
-    body{ background:#fff !important; }
+    body{ background:#fff !important; font-size:11px; }
     body *{ visibility:hidden; }
     #printArea, #printArea *{ visibility:visible; }
     #printArea{ position:absolute; top:0; left:0; width:100%; }
     #printArea *{ box-shadow:none !important; text-shadow:none !important; }
+    .sheet-table{ width:100%; border-collapse:collapse; }
+    .sheet-table td{ padding:0; }
     .sheet{ border:1.5px solid #000; border-radius:0; }
-    .sheet-head{ background:#000 !important; }
+    .sheet-head{
+      background:#F1F3F4 !important;
+      border:1px solid #999 !important;
+      border-radius:8px;
+      padding:8px 14px !important;
+      margin-bottom:6px;
+    }
+    .sheet-head .title{ color:#111 !important; font-size:13px !important; }
+    .sheet-head .date{ background:transparent !important; color:#111 !important; font-weight:700; font-size:12px !important; padding:0 !important; }
     .sheet-columns{
       column-count:2;
       column-gap:0;
@@ -601,13 +611,16 @@
       border-right:1px solid #000;
     }
     .sheet-group:first-child{ border-top:none; }
-    .sheet-dish{ break-inside:avoid; }
-    .sheet-group-title{ background:#fff !important; color:#000 !important; }
+    .sheet-group-title{ background:#fff !important; color:#000 !important; font-size:11px !important; padding:5px 10px !important; }
+    .sheet-dish{ break-inside:avoid; padding:6px 12px 8px !important; }
+    .sheet-dish-name{ font-size:11.5px !important; margin-bottom:4px !important; }
+    table.ing-table{ font-size:10px !important; }
+    table.ing-table td{ padding:2px 3px !important; }
+    table.ing-table thead td{ font-size:8.5px !important; }
     table.ing-table td.qty.total{ color:#000 !important; }
-    .sheet-day{ break-inside:avoid; }
     .sheet-day:not(:first-child){ break-before:page; page-break-before:always; }
     .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
-    @page{ margin:10mm; }
+    @page{ size:A4; margin:10mm; }
   }
 
   ::selection{ background:var(--accent-tint); color:var(--accent-dark); }
@@ -1704,14 +1717,16 @@ function initApp(){
       });
     }
 
-    let html = `<div class="sheet">
+    let html = `<table class="sheet-table"><thead><tr><td>
       <div class="sheet-head">
         <div class="title">Planilla de Producción</div>
         <div class="date">${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(fecha)}</div>
-      </div>`;
+      </div>
+    </td></tr></thead><tbody><tr><td>
+    <div class="sheet">`;
 
     if(!lista){
-      html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div>`;
+      html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div></td></tr></tbody></table>`;
       return html;
     }
 
@@ -1748,7 +1763,8 @@ function initApp(){
 
     html += `</div>
       <div class="no-entries">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
-    </div>`;
+    </div>
+    </td></tr></tbody></table>`;
     return html;
   }
 
