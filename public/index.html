@@ -439,8 +439,39 @@
     border-radius:16px;
     box-shadow:var(--elev-2);
   }
-  .sheet-day{ margin-bottom:20px; }
+  .sheet-day{ margin-bottom:10px; }
   .sheet-day:last-child{ margin-bottom:0; }
+  .day-toggle{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px 16px;
+    font-family:var(--font);
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+    text-align:left;
+  }
+  .day-toggle:hover{ background:var(--paper); }
+  .day-toggle-arrow{
+    color:var(--accent);
+    transition:transform .15s ease;
+    flex-shrink:0;
+  }
+  .sheet-day.open .day-toggle-arrow{ transform:rotate(90deg); }
+  .day-toggle-lista{
+    margin-left:auto;
+    font-weight:400;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .day-body{ display:none; margin-top:10px; }
+  .sheet-day.open .day-body{ display:block; }
   .sheet-head{
     background:var(--accent);
     color:var(--white);
@@ -587,6 +618,8 @@
     #printArea, #printArea *{ visibility:visible; }
     #printArea{ position:absolute; top:0; left:0; width:100%; }
     #printArea *{ box-shadow:none !important; text-shadow:none !important; }
+    .day-toggle{ display:none !important; }
+    .day-body{ display:block !important; margin-top:0 !important; }
     .sheet-table{ width:100%; border-collapse:collapse; }
     .sheet-table td{ padding:0; }
     .sheet{ border:1.5px solid #000; border-radius:0; }
@@ -1803,8 +1836,28 @@ function initApp(){
     const area = $('#printArea');
 
     const fechas = fechasDelRango(fecha, rango);
-    const html = fechas.map(f => `<div class="sheet-day">${construirHojaDelDia(f)}</div>`).join('');
+    const abrirTodos = rango === 'dia'; // si es un solo día, mostrarlo abierto directamente
+
+    const html = fechas.map(f => {
+      const diaSemana = new Date(f + 'T00:00:00').getDay();
+      const lista = resolverListaParaFecha(f);
+      const resumenLista = lista ? escapeHtml(lista.nombre) : 'sin lista asignada';
+      return `<div class="sheet-day${abrirTodos ? ' open' : ''}">
+        <button type="button" class="day-toggle">
+          <span class="day-toggle-arrow">▸</span>
+          <span>${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(f)}</span>
+          <span class="day-toggle-lista">${resumenLista}</span>
+        </button>
+        <div class="day-body">${construirHojaDelDia(f)}</div>
+      </div>`;
+    }).join('');
     area.innerHTML = html;
+
+    $$('.day-toggle', area).forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        btn.parentElement.classList.toggle('open');
+      });
+    });
   }
 
   // ---------- Init ----------
