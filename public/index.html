@@ -822,6 +822,27 @@ function initApp(){
     n = Math.round(n*1000)/1000;
     return n.toString();
   }
+  // Formatea un total de un ingrediente, pasando automáticamente
+  // de gramos a kilos cuando llega o supera los 1000 gr (y de
+  // mililitros a litros de la misma forma), con coma decimal.
+  function fmtTotalConversion(cantidad, unidad){
+    let valor = cantidad, unidadFinal = unidad;
+    if(unidad === 'gr' && cantidad >= 1000){
+      valor = cantidad / 1000;
+      unidadFinal = 'kg';
+    } else if(unidad === 'ml' && cantidad >= 1000){
+      valor = cantidad / 1000;
+      unidadFinal = 'lt';
+    }
+    let texto;
+    if(unidadFinal === 'kg' || unidadFinal === 'lt'){
+      texto = valor.toFixed(3).replace('.', ',');
+    } else {
+      valor = Math.round(valor*1000)/1000;
+      texto = valor.toString().replace('.', ',');
+    }
+    return `${texto} ${unidadFinal}`;
+  }
   function fmtDateHuman(iso){
     if(!iso) return "";
     const [y,m,d] = iso.split("-");
@@ -1709,7 +1730,7 @@ function initApp(){
             html += `<tr>
               <td>${escapeHtml(ing.name)}</td>
               <td class="qty">${fmtNum(ing.qty)} ${ing.unit}</td>
-              <td class="qty total">${fmtNum(total)} ${ing.unit}</td>
+              <td class="qty total">${fmtTotalConversion(total, ing.unit)}</td>
             </tr>`;
           });
           html += `</tbody></table></div>`;
