@@ -623,8 +623,7 @@
     #printArea *{ box-shadow:none !important; text-shadow:none !important; }
     .day-toggle{ display:none !important; }
     .day-body{ display:block !important; margin-top:0 !important; }
-    .sheet-table{ width:100%; border-collapse:collapse; }
-    .sheet-table td{ padding:0; }
+    .lista-aplicada{ display:none !important; }
     .sheet{ border:1.5px solid #000; border-radius:0; }
     .sheet-head{
       background:#F1F3F4 !important;
@@ -1754,16 +1753,14 @@ function initApp(){
       });
     }
 
-    let html = `<table class="sheet-table"><thead><tr><td>
+    let html = `<div class="sheet">
       <div class="sheet-head">
         <div class="title">Planilla de Producción</div>
         <div class="date">${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(fecha)}</div>
-      </div>
-    </td></tr></thead><tbody><tr><td>
-    <div class="sheet">`;
+      </div>`;
 
     if(!lista){
-      html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div></td></tr></tbody></table>`;
+      html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div>`;
       return html;
     }
 
@@ -1799,9 +1796,8 @@ function initApp(){
     });
 
     html += `</div>
-      <div class="no-entries">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
-    </div>
-    </td></tr></tbody></table>`;
+      <div class="no-entries lista-aplicada">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
+    </div>`;
     return html;
   }
 
