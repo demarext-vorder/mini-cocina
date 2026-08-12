@@ -528,6 +528,51 @@
   .ciclo-preview-row .fecha{ color:var(--ink-soft); }
   .ciclo-preview-row .lista{ font-weight:600; color:var(--accent-dark); }
 
+  .almanaque{
+    display:grid;
+    grid-template-columns:repeat(7, 1fr);
+    gap:4px;
+  }
+  .almanaque .dia-header{
+    text-align:center;
+    font-size:10.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    padding:4px 0;
+  }
+  .almanaque .dia-celda{
+    min-height:64px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:5px;
+    background:var(--surface);
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .almanaque .dia-celda.vacia{ background:transparent; border:none; }
+  .almanaque .dia-celda.hoy{ border-color:var(--accent); border-width:2px; }
+  .almanaque .dia-num{
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--ink);
+  }
+  .almanaque .dia-lista{
+    font-size:10px;
+    font-weight:600;
+    color:var(--accent-dark);
+    background:var(--accent-tint);
+    border-radius:5px;
+    padding:2px 4px;
+    line-height:1.25;
+    overflow:hidden;
+  }
+  .almanaque .dia-sinlista{
+    font-size:10px;
+    color:var(--ink-soft);
+  }
+
   .toolbar{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:end; }
   .toolbar .field{ margin-bottom:0; flex:1; min-width:140px; }
 
@@ -711,7 +756,12 @@
       </div>
       <button class="btn btn-primary" id="guardarCicloBtn" style="margin-top:6px;">Guardar ciclo</button>
 
-      <div id="cicloPreview" style="margin-top:16px;"></div>
+      <div id="cicloPreviewNav" style="display:flex; align-items:center; justify-content:space-between; margin-top:16px;">
+        <button class="btn btn-small btn-ghost" id="cicloMesAnterior">← Mes anterior</button>
+        <span id="cicloMesLabel" style="font-weight:600; font-family:var(--font);"></span>
+        <button class="btn btn-small btn-ghost" id="cicloMesSiguiente">Mes siguiente →</button>
+      </div>
+      <div id="cicloPreview" style="margin-top:10px;"></div>
     </div>
   </section>
 
@@ -1518,30 +1568,66 @@ function initApp(){
     return listas.find(l => l.id === listaId) || null;
   }
 
+  let cicloMesMostrado = null; // Date del primer día del mes que se está mostrando
+
   function renderCicloPreview(){
     const box = $('#cicloPreview');
+    const label = $('#cicloMesLabel');
     const seq = ciclo.secuenciaListaIds || [];
+
     if(seq.length === 0 || !ciclo.fechaInicio){
-      box.innerHTML = '';
+      box.innerHTML = '<div class="empty">Armá el orden del ciclo y elegí la fecha de inicio para ver el almanaque.</div>';
+      label.textContent = '';
       return;
     }
-    let html = '<label>Vista previa (próximos 7 días desde el inicio)</label><div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
-    const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
-    for(let i=0; i<7; i++){
-      const d = new Date(dIni);
-      d.setDate(d.getDate() + i);
-      const fechaISO = d.toISOString().slice(0,10);
+
+    if(!cicloMesMostrado){
+      const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+      cicloMesMostrado = new Date(dIni.getFullYear(), dIni.getMonth(), 1);
+    }
+
+    const anio = cicloMesMostrado.getFullYear();
+    const mes = cicloMesMostrado.getMonth();
+    const NOMBRES_MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    label.textContent = `${NOMBRES_MES[mes]} ${anio}`;
+
+    const primerDiaSemana = new Date(anio, mes, 1).getDay(); // 0=Domingo
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+    const hoyISO = todayISO();
+
+    let html = '<div class="almanaque">';
+    ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(d=>{
+      html += `<div class="dia-header">${d}</div>`;
+    });
+    for(let i=0; i<primerDiaSemana; i++){
+      html += '<div class="dia-celda vacia"></div>';
+    }
+    for(let dia=1; dia<=diasEnMes; dia++){
+      const fechaISO = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
       const l = resolverListaParaFecha(fechaISO);
-      html += `<div class="ciclo-preview-row">
-        <span class="fecha">${DIAS_SEMANA[d.getDay()]} ${fmtDateHuman(fechaISO)}</span>
-        <span class="lista">${l ? escapeHtml(l.nombre) : '—'}</span>
+      const esHoy = fechaISO === hoyISO ? ' hoy' : '';
+      html += `<div class="dia-celda${esHoy}">
+        <span class="dia-num">${dia}</span>
+        ${l ? `<span class="dia-lista">${escapeHtml(l.nombre)}</span>` : '<span class="dia-sinlista">—</span>'}
       </div>`;
     }
     html += '</div>';
     box.innerHTML = html;
   }
 
+  $('#cicloMesAnterior').addEventListener('click', ()=>{
+    if(!cicloMesMostrado) return;
+    cicloMesMostrado = new Date(cicloMesMostrado.getFullYear(), cicloMesMostrado.getMonth() - 1, 1);
+    renderCicloPreview();
+  });
+  $('#cicloMesSiguiente').addEventListener('click', ()=>{
+    if(!cicloMesMostrado) return;
+    cicloMesMostrado = new Date(cicloMesMostrado.getFullYear(), cicloMesMostrado.getMonth() + 1, 1);
+    renderCicloPreview();
+  });
+
   $('#cicloFechaInicio').addEventListener('change', ()=>{
+    cicloMesMostrado = null; // al cambiar la fecha de inicio, volvemos a mostrar su mes
     renderCicloPreview();
   });
 
