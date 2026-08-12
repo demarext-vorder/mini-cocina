@@ -488,22 +488,45 @@
 
   .no-entries{ padding:16px 22px; color:var(--ink-soft); font-size:13px; }
 
-  .horario-row{
+  .ciclo-row{
     display:flex;
     align-items:center;
-    gap:12px;
-    padding:9px 0;
+    gap:10px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:8px 10px;
+    margin-bottom:6px;
+    font-size:13px;
+  }
+  .ciclo-row .pos{
+    background:var(--accent);
+    color:var(--white);
+    font-family:var(--font);
+    font-weight:700;
+    font-size:11.5px;
+    width:22px; height:22px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .ciclo-row .nombre{ flex:1; font-weight:500; }
+  .ciclo-row .mini-btn{
+    background:var(--paper); border:1px solid var(--border); border-radius:6px;
+    width:26px; height:26px; cursor:pointer; font-size:12px; color:var(--ink-soft);
+    flex-shrink:0;
+  }
+  .ciclo-row .mini-btn:hover{ background:var(--accent-tint); color:var(--accent-dark); }
+  .ciclo-preview-row{
+    display:flex;
+    justify-content:space-between;
+    padding:6px 10px;
+    font-size:12.5px;
     border-bottom:1px solid var(--paper-dark);
   }
-  .horario-row:last-child{ border-bottom:none; }
-  .horario-row .dia{
-    width:90px;
-    flex-shrink:0;
-    font-weight:600;
-    font-size:13px;
-    color:var(--ink);
-  }
-  .horario-row select{ flex:1; }
+  .ciclo-preview-row:last-child{ border-bottom:none; }
+  .ciclo-preview-row .fecha{ color:var(--ink-soft); }
+  .ciclo-preview-row .lista{ font-weight:600; color:var(--accent-dark); }
 
   .toolbar{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:end; }
   .toolbar .field{ margin-bottom:0; flex:1; min-width:140px; }
@@ -672,9 +695,23 @@
     </div>
 
     <div class="card">
-      <h2>📅 Horario semanal</h2>
-      <div class="subtitle" style="margin-bottom:12px;">Elegí qué lista corresponde a cada día. Se repite automáticamente todas las semanas.</div>
-      <div id="horarioBuilder"></div>
+      <h2>🔁 Ciclo de listas</h2>
+      <div class="subtitle" style="margin-bottom:12px;">Elegí el orden de las listas y desde qué día empieza el ciclo. Se va a repetir en bucle, día por día, durante todo el mes (y los siguientes).</div>
+
+      <label>Orden del ciclo</label>
+      <div id="cicloSecuenciaBuilder"></div>
+      <div class="add-entry" style="margin-top:6px;">
+        <select id="cicloListaSel"><option value="">Agregar lista al ciclo...</option></select>
+        <button class="btn btn-small btn-primary" id="addCicloListaBtn">+ Agregar</button>
+      </div>
+
+      <div class="field" style="margin-top:14px; max-width:220px;">
+        <label>Empezar ciclo el día</label>
+        <input type="date" id="cicloFechaInicio">
+      </div>
+      <button class="btn btn-primary" id="guardarCicloBtn" style="margin-top:6px;">Guardar ciclo</button>
+
+      <div id="cicloPreview" style="margin-top:16px;"></div>
     </div>
   </section>
 
@@ -715,7 +752,8 @@ function initApp(){
   let recipes = [];
   let menus = [];        // [{id, nombre, grupo, items:[{recipeId, raciones}]}]
   let listas = [];       // [{id, nombre, menuIds:[...]}]
-  let horario = {};      // {0:listaId, 1:listaId, ...} 0=Domingo ... 6=Sábado (igual a Date.getDay())
+  let ciclo = { fechaInicio: '', secuenciaListaIds: [] }; // ciclo rotativo día por día
+  let horario = {};      // sistema viejo (día de semana -> lista), ya no se usa, se conserva por compatibilidad
   let menusByDate = {};  // ya no se usa para armar la planilla, se deja solo por compatibilidad
   let currentIngRows = [];
   let currentMenuItems = [];   // para el formulario de "Nuevo menú"
@@ -760,12 +798,13 @@ function initApp(){
       recipes = Array.isArray(data.recipes) ? data.recipes : [];
       menus = Array.isArray(data.menus) ? data.menus : [];
       listas = Array.isArray(data.listas) ? data.listas : [];
+      ciclo = (data.ciclo && typeof data.ciclo === 'object') ? data.ciclo : { fechaInicio: '', secuenciaListaIds: [] };
       horario = (data.horario && typeof data.horario === 'object') ? data.horario : {};
       menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
       connStatus.textContent = 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.';
     }catch(e){
       console.error('No se pudo conectar con el servidor', e);
-      recipes = []; menus = []; listas = []; horario = {}; menusByDate = {};
+      recipes = []; menus = []; listas = []; ciclo = { fechaInicio: '', secuenciaListaIds: [] }; horario = {}; menusByDate = {};
       connStatus.textContent = 'Sin conexión con el servidor. Revisá tu internet y recargá la página.';
     }
   }
@@ -779,7 +818,7 @@ function initApp(){
           'Content-Type': 'application/json',
           'X-App-Password': appPassword || ''
         },
-        body: JSON.stringify({ recipes, menus, listas, horario, menusByDate })
+        body: JSON.stringify({ recipes, menus, listas, ciclo, horario, menusByDate })
       });
       if(resp.status === 401){
         appPassword = null;
@@ -812,6 +851,9 @@ function initApp(){
   async function saveHorario(){
     await persistAll();
   }
+  async function saveCiclo(){
+    await persistAll();
+  }
 
   // ---------- Tabs ----------
   $$('.tab-btn').forEach(btn=>{
@@ -821,7 +863,7 @@ function initApp(){
       btn.classList.add('active');
       $('#panel-'+btn.dataset.tab).classList.add('active');
       if(btn.dataset.tab === 'menues') renderMenuList();
-      if(btn.dataset.tab === 'listas'){ renderListaList(); renderHorario(); }
+      if(btn.dataset.tab === 'listas'){ renderListaList(); cargarFormularioCiclo(); }
       if(btn.dataset.tab === 'imprimir') renderPrintArea();
     });
   });
@@ -1352,7 +1394,7 @@ function initApp(){
     await saveListas();
     resetListaForm();
     renderListaList();
-    renderHorario();
+    cargarFormularioCiclo();
   });
 
   function renderListaList(){
@@ -1402,47 +1444,122 @@ function initApp(){
   }
 
   async function deleteLista(id){
-    if(!confirm('¿Borrar esta lista? También se va a quitar del horario semanal donde esté asignada.')) return;
+    if(!confirm('¿Borrar esta lista? También se va a quitar del ciclo donde esté incluida.')) return;
     listas = listas.filter(l=>l.id!==id);
-    Object.keys(horario).forEach(dia=>{
-      if(horario[dia] === id) delete horario[dia];
-    });
+    if(ciclo.secuenciaListaIds){
+      ciclo.secuenciaListaIds = ciclo.secuenciaListaIds.filter(lid => lid !== id);
+    }
     await saveListas();
     renderListaList();
-    renderHorario();
+    cargarFormularioCiclo();
   }
 
-  // ---------- HORARIO SEMANAL ----------
-  function renderHorario(){
-    const box = $('#horarioBuilder');
-    if(listas.length === 0){
-      box.innerHTML = '<div class="empty">Armá al menos una lista arriba ↑ para poder asignarla a los días de la semana.</div>';
+  // ---------- CICLO DE LISTAS ----------
+  function poblarSelectCiclo(){
+    const sel = $('#cicloListaSel');
+    sel.innerHTML = '<option value="">Agregar lista al ciclo...</option>' +
+      listas.map(l=>`<option value="${l.id}">${escapeHtml(l.nombre)}</option>`).join('');
+  }
+
+  function renderCicloSecuencia(){
+    const box = $('#cicloSecuenciaBuilder');
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0){
+      box.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0;">Todavía no armaste el orden del ciclo.</div>';
+    } else {
+      box.innerHTML = '';
+      seq.forEach((listaId, idx)=>{
+        const l = listas.find(x=>x.id===listaId);
+        const row = document.createElement('div');
+        row.className = 'ciclo-row';
+        row.innerHTML = `
+          <span class="pos">${idx+1}</span>
+          <span class="nombre">${escapeHtml(l ? l.nombre : '(lista borrada)')}</span>
+          <button class="mini-btn" data-act="up" data-idx="${idx}" title="Subir" ${idx===0?'disabled':''}>▲</button>
+          <button class="mini-btn" data-act="down" data-idx="${idx}" title="Bajar" ${idx===seq.length-1?'disabled':''}>▼</button>
+          <button class="mini-btn" data-act="del" data-idx="${idx}" title="Quitar">✕</button>
+        `;
+        box.appendChild(row);
+      });
+      $$('.mini-btn', box).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const idx = +btn.dataset.idx;
+          const act = btn.dataset.act;
+          if(act==='del') seq.splice(idx,1);
+          if(act==='up' && idx>0) [seq[idx-1],seq[idx]] = [seq[idx],seq[idx-1]];
+          if(act==='down' && idx<seq.length-1) [seq[idx+1],seq[idx]] = [seq[idx],seq[idx+1]];
+          renderCicloSecuencia();
+          renderCicloPreview();
+        });
+      });
+    }
+    renderCicloPreview();
+  }
+
+  $('#addCicloListaBtn').addEventListener('click', ()=>{
+    const sel = $('#cicloListaSel');
+    if(!sel.value){ alert('Elegí una lista para agregar al ciclo.'); return; }
+    if(!ciclo.secuenciaListaIds) ciclo.secuenciaListaIds = [];
+    ciclo.secuenciaListaIds.push(sel.value);
+    sel.value = '';
+    renderCicloSecuencia();
+  });
+
+  // Dada una fecha (YYYY-MM-DD), devuelve la lista que le corresponde según el ciclo, o null.
+  function resolverListaParaFecha(fecha){
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0 || !ciclo.fechaInicio) return null;
+    const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+    const dFecha = new Date(fecha + 'T00:00:00');
+    const diffDias = Math.round((dFecha - dIni) / 86400000);
+    if(diffDias < 0) return null; // fecha anterior al inicio del ciclo
+    const idx = diffDias % seq.length;
+    const listaId = seq[idx];
+    return listas.find(l => l.id === listaId) || null;
+  }
+
+  function renderCicloPreview(){
+    const box = $('#cicloPreview');
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0 || !ciclo.fechaInicio){
+      box.innerHTML = '';
       return;
     }
-    box.innerHTML = '';
-    DIAS_SEMANA.forEach((nombreDia, idx)=>{
-      const row = document.createElement('div');
-      row.className = 'horario-row';
-      const seleccion = horario[idx] || '';
-      row.innerHTML = `
-        <span class="dia">${nombreDia}</span>
-        <select data-dia="${idx}">
-          <option value="">Sin asignar</option>
-          ${listas.map(l=>`<option value="${l.id}" ${l.id===seleccion?'selected':''}>${escapeHtml(l.nombre)}</option>`).join('')}
-        </select>
-      `;
-      box.appendChild(row);
-    });
-    $$('select[data-dia]', box).forEach(sel=>{
-      sel.addEventListener('change', async ()=>{
-        const dia = sel.dataset.dia;
-        if(sel.value) horario[dia] = sel.value;
-        else delete horario[dia];
-        await saveHorario();
-      });
-    });
+    let html = '<label>Vista previa (próximos 7 días desde el inicio)</label><div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
+    const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+    for(let i=0; i<7; i++){
+      const d = new Date(dIni);
+      d.setDate(d.getDate() + i);
+      const fechaISO = d.toISOString().slice(0,10);
+      const l = resolverListaParaFecha(fechaISO);
+      html += `<div class="ciclo-preview-row">
+        <span class="fecha">${DIAS_SEMANA[d.getDay()]} ${fmtDateHuman(fechaISO)}</span>
+        <span class="lista">${l ? escapeHtml(l.nombre) : '—'}</span>
+      </div>`;
+    }
+    html += '</div>';
+    box.innerHTML = html;
   }
 
+  $('#cicloFechaInicio').addEventListener('change', ()=>{
+    renderCicloPreview();
+  });
+
+  $('#guardarCicloBtn').addEventListener('click', async ()=>{
+    const fechaInicio = $('#cicloFechaInicio').value;
+    if(!fechaInicio){ alert('Elegí desde qué día empieza el ciclo.'); return; }
+    if(!ciclo.secuenciaListaIds || ciclo.secuenciaListaIds.length === 0){ alert('Agregá al menos una lista al orden del ciclo.'); return; }
+    ciclo.fechaInicio = fechaInicio;
+    await saveCiclo();
+    renderCicloPreview();
+    alert('Ciclo guardado correctamente.');
+  });
+
+  function cargarFormularioCiclo(){
+    poblarSelectCiclo();
+    $('#cicloFechaInicio').value = ciclo.fechaInicio || '';
+    renderCicloSecuencia();
+  }
 
   // ---------- Imprimir ----------
   $('#printDate').value = todayISO();
@@ -1453,14 +1570,12 @@ function initApp(){
     const fecha = $('#printDate').value || todayISO();
     const area = $('#printArea');
 
-    // 1) ¿Qué día de la semana es esa fecha? (0=Domingo...6=Sábado)
     const diaSemana = new Date(fecha + 'T00:00:00').getDay();
-    const listaId = horario[diaSemana];
-    const lista = listaId ? listas.find(l => l.id === listaId) : null;
+    const lista = resolverListaParaFecha(fecha);
 
-    // 2) Juntamos todos los platos de todos los menúes de esa lista,
-    //    agrupados por grupo (PACIENTE ALMUERZO, etc.), sumando raciones
-    //    si el mismo plato aparece en más de un menú del mismo grupo.
+    // Juntamos todos los platos de todos los menúes de esa lista,
+    // agrupados por grupo (PACIENTE ALMUERZO, etc.), sumando raciones
+    // si el mismo plato aparece en más de un menú del mismo grupo.
     const entriesPorGrupo = {};
     GRUPOS.forEach(g => entriesPorGrupo[g] = []);
 
@@ -1481,7 +1596,7 @@ function initApp(){
       </div>`;
 
     if(!lista){
-      html += `<div class="no-entries">No hay ninguna lista asignada a los "${DIAS_SEMANA[diaSemana]}". Andá a la pestaña "Listas" → "Horario semanal" para asignar una.</div></div>`;
+      html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div>`;
       area.innerHTML = html;
       return;
     }
