@@ -482,6 +482,8 @@
   }
   .sheet-head .title{ font-family:var(--font); text-transform:none; font-size:16px; font-weight:600; }
   .sheet-head .date{ font-family:var(--font); font-size:13px; background:rgba(255,255,255,.22); padding:3px 10px; border-radius:20px; font-weight:500; }
+  .sheet-columns{ display:flex; gap:20px; align-items:flex-start; }
+  .sheet-col{ flex:1; min-width:0; }
   .sheet-group{ border-top:1px solid var(--border); }
   .sheet-group-title{
     font-family:var(--font);
@@ -638,17 +640,20 @@
     .sheet-head .title{ color:#111 !important; font-size:13px !important; }
     .sheet-head .date{ background:transparent !important; color:#111 !important; font-weight:700; font-size:12px !important; padding:0 !important; }
     .sheet-columns{
-      column-count:2;
-      column-gap:0;
+      display:flex !important;
+      gap:0 !important;
+      align-items:flex-start;
     }
-    .sheet-group{
-      break-inside:avoid;
-      display:inline-block;
-      width:100%;
+    .sheet-col{
+      flex:1 1 50%;
+      min-width:0;
       border-left:1px solid #000;
       border-right:1px solid #000;
     }
-    .sheet-group:first-child{ border-top:none; }
+    .sheet-col + .sheet-col{ border-left:none; }
+    .sheet-group{
+      break-inside:avoid;
+    }
     .sheet-group-title{ background:#fff !important; color:#000 !important; font-size:11px !important; padding:5px 10px !important; }
     .sheet-dish{ break-inside:avoid; padding:6px 12px 8px !important; }
     .sheet-dish-name{ font-size:11.5px !important; margin-bottom:4px !important; }
@@ -1767,38 +1772,48 @@ function initApp(){
       return html;
     }
 
-    html += `<div class="sheet-columns">`;
-
-    GRUPOS.forEach(grupo=>{
+    function construirGrupoHtml(grupo){
       const groupEntries = entriesPorGrupo[grupo];
-      html += `<div class="sheet-group">
+      let h = `<div class="sheet-group">
         <div class="sheet-group-title">${grupo}</div>`;
       if(groupEntries.length===0){
-        html += `<div class="no-entries">Sin platos para este grupo en la lista "${escapeHtml(lista.nombre)}".</div>`;
+        h += `<div class="no-entries">Sin platos para este grupo en la lista "${escapeHtml(lista.nombre)}".</div>`;
       } else {
         groupEntries.forEach(e=>{
           const rec = recipes.find(r=>r.id===e.recipeId);
           if(!rec) return;
-          html += `<div class="sheet-dish">
+          h += `<div class="sheet-dish">
             <div class="sheet-dish-name">${escapeHtml(rec.name)}<span class="rac-badge">${e.raciones} RAC.</span></div>
             <table class="ing-table">
               <thead><tr><td>Ingrediente</td><td class="qty">Por ración</td><td class="qty">Total</td></tr></thead>
               <tbody>`;
           rec.ingredients.forEach(ing=>{
             const total = ing.qty * e.raciones;
-            html += `<tr>
+            h += `<tr>
               <td>${escapeHtml(ing.name)}</td>
               <td class="qty">${fmtNum(ing.qty)} ${ing.unit}</td>
               <td class="qty total">${fmtTotalConversion(total, ing.unit)}</td>
             </tr>`;
           });
-          html += `</tbody></table></div>`;
+          h += `</tbody></table></div>`;
         });
       }
-      html += `</div>`;
-    });
+      h += `</div>`;
+      return h;
+    }
 
-    html += `</div>
+    html += `<div class="sheet-columns">
+      <div class="sheet-col">
+        ${construirGrupoHtml('PACIENTE ALMUERZO')}
+        ${construirGrupoHtml('PACIENTE CENA')}
+      </div>
+      <div class="sheet-col">
+        ${construirGrupoHtml('PERSONAL ALMUERZO')}
+        ${construirGrupoHtml('PERSONAL CENA')}
+      </div>
+    </div>`;
+
+    html += `
       <div class="no-entries lista-aplicada">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
     </div>`;
     return html;
