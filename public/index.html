@@ -717,6 +717,15 @@
       <label style="margin-top:4px">Ingredientes por 1 ración</label>
       <div id="ingredientsBuilder"></div>
       <button class="ghost-add" id="addIngRow">+ Agregar ingrediente</button>
+
+      <label style="margin-top:12px">Foto del plato (opcional)</label>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <img id="recipePhotoPreview" alt="" style="display:none; width:64px; height:64px; object-fit:cover; border-radius:10px; border:1px solid var(--border);">
+        <input type="file" id="recipePhotoInput" accept="image/*" style="flex:1;">
+        <button class="btn btn-small btn-danger" id="removeRecipePhotoBtn" style="display:none;">Quitar foto</button>
+      </div>
+      <div id="recipePhotoStatus" style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;"></div>
+
       <div style="margin-top:12px; display:flex; gap:8px;">
         <button class="btn btn-primary" id="saveRecipeBtn">Guardar receta</button>
         <button class="btn btn-ghost" id="clearRecipeForm">Limpiar</button>
@@ -973,6 +982,70 @@ function initApp(){
     }
   }
 
+  // ---------- Imágenes de recetas (tabla separada en el servidor) ----------
+  // Comprime la imagen en el navegador antes de subirla, para que no pese
+  // varios MB (una foto de celular puede pesar 3-5MB; la dejamos en unos
+  // cientos de KB, que alcanza de sobra para verse bien en una pantalla).
+  function comprimirImagen(file, maxAncho = 600, calidad = 0.72){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          const escala = Math.min(1, maxAncho / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * escala);
+          canvas.height = Math.round(img.height * escala);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', calidad));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function subirImagenReceta(recetaId, dataUrl){
+    if(appPassword === null) pedirContrasena();
+    const resp = await fetch(`${API_URL}/imagenes/${recetaId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-App-Password': appPassword || '' },
+      body: JSON.stringify({ imagen: dataUrl })
+    });
+    if(resp.status === 401){
+      appPassword = null;
+      alert('Contraseña incorrecta. La foto no se guardó -- volvé a intentar.');
+      return false;
+    }
+    return resp.ok;
+  }
+
+  async function borrarImagenReceta(recetaId){
+    if(appPassword === null) pedirContrasena();
+    try{
+      await fetch(`${API_URL}/imagenes/${recetaId}`, {
+        method: 'DELETE',
+        headers: { 'X-App-Password': appPassword || '' }
+      });
+    }catch(e){
+      console.warn('No se pudo borrar la foto de la receta (puede que no tuviera)', e);
+    }
+  }
+
+  async function traerImagenReceta(recetaId){
+    try{
+      const resp = await fetch(`${API_URL}/imagenes/${recetaId}`);
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      return data.imagen || null;
+    }catch(e){
+      return null;
+    }
+  }
+
   async function saveRecipes(){
     await persistAll();
   }
@@ -1134,6 +1207,50 @@ function initApp(){
   });
 
   $('#clearRecipeForm').addEventListener('click', resetRecipeForm);
+
+  // Estado de la foto que se está por guardar en el formulario actual
+  let fotoPendiente = null;   // dataURL nueva elegida (o null si no cambió nada)
+  let fotoFueQuitada = false; // true si el usuario tocó "Quitar foto"
+
+  function mostrarPreviewFoto(dataUrl){
+    const img = $('#recipePhotoPreview');
+    const btnQuitar = $('#removeRecipePhotoBtn');
+    if(dataUrl){
+      img.src = dataUrl;
+      img.style.display = '';
+      btnQuitar.style.display = '';
+    } else {
+      img.src = '';
+      img.style.display = 'none';
+      btnQuitar.style.display = 'none';
+    }
+  }
+
+  $('#recipePhotoInput').addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    $('#recipePhotoStatus').textContent = 'Comprimiendo imagen...';
+    try{
+      const dataUrl = await comprimirImagen(file);
+      fotoPendiente = dataUrl;
+      fotoFueQuitada = false;
+      mostrarPreviewFoto(dataUrl);
+      const kb = Math.round(dataUrl.length * 0.75 / 1024);
+      $('#recipePhotoStatus').textContent = `Lista para guardar (~${kb} KB).`;
+    }catch(err){
+      console.error(err);
+      $('#recipePhotoStatus').textContent = 'No se pudo procesar la imagen.';
+    }
+  });
+
+  $('#removeRecipePhotoBtn').addEventListener('click', ()=>{
+    fotoPendiente = null;
+    fotoFueQuitada = true;
+    mostrarPreviewFoto(null);
+    $('#recipePhotoInput').value = '';
+    $('#recipePhotoStatus').textContent = 'Se va a quitar la foto al guardar.';
+  });
+
   function resetRecipeForm(){
     $('#newRecipeName').value = '';
     $('#newRecipeGroup').value = 'pacientes';
@@ -1143,6 +1260,11 @@ function initApp(){
     $('#saveRecipeBtn').textContent = 'Guardar receta';
     nombreSuggest.classList.remove('open');
     nombreSuggest.innerHTML = '';
+    fotoPendiente = null;
+    fotoFueQuitada = false;
+    $('#recipePhotoInput').value = '';
+    $('#recipePhotoStatus').textContent = '';
+    mostrarPreviewFoto(null);
   }
 
   $('#saveRecipeBtn').addEventListener('click', async ()=>{
@@ -1155,13 +1277,24 @@ function initApp(){
     if(ings.length === 0){ alert('Agregá al menos un ingrediente con cantidad.'); return; }
 
     const editingId = $('#saveRecipeBtn').dataset.editing;
+    let recetaId;
     if(editingId){
+      recetaId = editingId;
       const idx = recipes.findIndex(r=>r.id===editingId);
       if(idx>=0) recipes[idx] = {...recipes[idx], name, group, ingredients: ings};
     } else {
-      recipes.push({id:uid(), name, group, ingredients: ings});
+      recetaId = uid();
+      recipes.push({id:recetaId, name, group, ingredients: ings});
     }
     await saveRecipes();
+
+    // La foto se sube/borra aparte, sin tocar para nada el guardado de arriba.
+    if(fotoPendiente){
+      await subirImagenReceta(recetaId, fotoPendiente);
+    } else if(fotoFueQuitada){
+      await borrarImagenReceta(recetaId);
+    }
+
     resetRecipeForm();
     renderRecipeList();
   });
@@ -1204,15 +1337,29 @@ function initApp(){
     renderIngBuilder();
     $('#saveRecipeBtn').dataset.editing = id;
     $('#saveRecipeBtn').textContent = 'Guardar cambios';
+    fotoPendiente = null;
+    fotoFueQuitada = false;
+    $('#recipePhotoInput').value = '';
+    mostrarPreviewFoto(null);
+    $('#recipePhotoStatus').textContent = 'Buscando foto guardada...';
+    traerImagenReceta(id).then(dataUrl=>{
+      if(dataUrl){
+        mostrarPreviewFoto(dataUrl);
+        $('#recipePhotoStatus').textContent = 'Foto ya guardada (elegí otra para reemplazarla).';
+      } else {
+        $('#recipePhotoStatus').textContent = 'Esta receta todavía no tiene foto.';
+      }
+    });
     window.scrollTo({top:0, behavior:'smooth'});
     document.querySelector('[data-tab="recetario"]').click();
   }
 
   async function deleteRecipe(id){
-    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida.')) return;
+    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida, junto con su foto si tenía.')) return;
     recipes = recipes.filter(r=>r.id!==id);
     menus.forEach(m=>{ m.items = m.items.filter(it=>it.recipeId!==id); });
     await saveRecipes();
+    await borrarImagenReceta(id); // se borra sola, sin que haga falta acordarse
     renderRecipeList();
   }
 
