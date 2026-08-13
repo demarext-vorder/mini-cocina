@@ -635,6 +635,10 @@
     #panel-imprimir > .card{ display:none !important; }
     .modal-overlay{ display:none !important; }
     .app{ max-width:none !important; margin:0 !important; padding:0 !important; }
+    #printArea{
+      padding: 0 1cm !important;
+      box-sizing: border-box !important;
+    }
     #printArea *{ box-shadow:none !important; text-shadow:none !important; }
     .day-toggle{ display:none !important; }
     .day-body{ display:block !important; margin-top:0 !important; }
@@ -645,15 +649,16 @@
     .ticket-group-bar{ break-after:avoid !important; break-inside:avoid !important; }
     .ticket-dish-title{ break-after:avoid !important; }
     .ticket-table tr{ break-inside:avoid !important; }
-    .sheet-day{ margin:0 !important; }
+    .sheet-day{
+      margin:0 !important;
+      padding: 2cm 0 !important;
+      box-sizing: border-box !important;
+    }
     .sheet-day:not(:first-child){ break-before:page; page-break-before:always; }
     .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
     @page{
       size: A4;
-      margin-top: 2cm;
-      margin-bottom: 2cm;
-      margin-left: 1cm;
-      margin-right: 1cm;
+      margin: 0;
     }
   }
 
