@@ -431,14 +431,6 @@
   .modal-row input{ width:80px; flex:none; text-align:center; }
 
   /* --- Print sheet preview --- */
-  .sheet{
-    background:var(--surface);
-    border:1px solid var(--border);
-    padding:0;
-    overflow:hidden;
-    border-radius:16px;
-    box-shadow:var(--elev-2);
-  }
   .sheet-day{ margin-bottom:10px; }
   .sheet-day:last-child{ margin-bottom:0; }
   .day-toggle{
@@ -472,53 +464,75 @@
   }
   .day-body{ display:none; margin-top:10px; }
   .sheet-day.open .day-body{ display:block; }
-  .sheet-head{
-    background:var(--accent);
-    color:var(--white);
-    padding:18px 22px;
+
+  /* --- Ticket / comanda (estilo copiado de la planilla en papel) --- */
+  .ticket{
+    background:#fff;
+    color:#111;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+    font-family:Arial,Helvetica,sans-serif;
+  }
+  .ticket-titlebar{
+    border-bottom:3px double #000;
+    padding-bottom:6px;
+    margin-bottom:8px;
+  }
+  .ticket-title{ font-weight:800; font-size:17px; }
+  .ticket-datebar{
+    background:#111;
+    color:#fff;
+    font-weight:700;
+    text-align:center;
+    padding:6px;
+    margin-bottom:10px;
+    font-size:13px;
+    letter-spacing:.03em;
+    border-radius:3px;
+  }
+  .ticket-columns{
+    columns:2;
+    column-gap:18px;
+    column-rule:1px solid #000;
+  }
+  .ticket-group{ break-inside:auto; margin-bottom:12px; }
+  .ticket-group-bar{
+    background:#E4E4E4;
     display:flex;
     justify-content:space-between;
-    align-items:center;
+    align-items:baseline;
+    gap:8px;
+    padding:5px 8px;
+    font-weight:700;
+    font-size:11.5px;
+    letter-spacing:.02em;
+    break-after:avoid;
+    break-inside:avoid;
+    margin-bottom:4px;
   }
-  .sheet-head .title{ font-family:var(--font); text-transform:none; font-size:16px; font-weight:600; }
-  .sheet-head .date{ font-family:var(--font); font-size:13px; background:rgba(255,255,255,.22); padding:3px 10px; border-radius:20px; font-weight:500; }
-  .sheet-columns{ display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
-  .sheet-group{ border-top:1px solid var(--border); }
-  .sheet-group-title{
-    font-family:var(--font);
-    text-transform:none;
-    font-weight:600;
-    font-size:14.5px;
-    background:var(--paper-dark);
-    color:var(--accent-dark);
-    padding:10px 22px;
-    letter-spacing:0;
+  .ticket-group-date{ font-weight:400; font-size:9.5px; color:#444; }
+  .ticket-dish-title{
+    font-weight:700;
+    font-style:italic;
+    font-size:11.5px;
+    margin:6px 0 2px;
+    break-after:avoid;
   }
-  .sheet-dish{ padding:12px 22px 16px; border-bottom:1px solid var(--paper-dark); }
-  .sheet-dish:last-child{ border-bottom:none; }
-  .sheet-dish-name{
-    font-family:var(--font);
-    font-weight:600;
-    font-size:14px;
-    text-transform:none;
-    margin-bottom:8px;
-    color:var(--ink);
+  .ticket-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-bottom:6px;
+    font-size:10px;
+    break-inside:auto;
   }
-  .sheet-dish-name .rac-badge{
-    font-family:var(--font);
-    background:var(--accent-tint);
-    color:var(--accent-dark);
-    font-size:11px;
-    font-weight:600;
-    padding:2px 9px;
-    border-radius:20px;
-    margin-left:8px;
+  .ticket-table td{
+    border:1px solid #999;
+    padding:2px 6px;
   }
-  table.ing-table{ width:100%; border-collapse:collapse; font-size:13px; }
-  table.ing-table td{ padding:5px 4px; border-bottom:1px solid var(--paper-dark); }
-  table.ing-table td.qty{ font-family:var(--font); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  table.ing-table td.qty.total{ font-weight:700; color:var(--accent-dark); }
-  table.ing-table thead td{ font-size:10.5px; text-transform:uppercase; color:var(--ink-soft); border-bottom:1px solid var(--border); font-weight:600; letter-spacing:.03em; }
+  .ti-name{ text-align:left; }
+  .ti-unit, .ti-total{ text-align:right; white-space:nowrap; width:78px; }
+  .ti-total{ font-weight:700; }
 
   .no-entries{ padding:16px 22px; color:var(--ink-soft); font-size:13px; }
 
@@ -624,37 +638,13 @@
     #printArea *{ box-shadow:none !important; text-shadow:none !important; }
     .day-toggle{ display:none !important; }
     .day-body{ display:block !important; margin-top:0 !important; }
-    .lista-aplicada{ display:none !important; }
-    .sheet{ border:1.5px solid #000; border-radius:0; }
-    .sheet-head{
-      background:#F1F3F4 !important;
-      border:1px solid #999 !important;
-      border-radius:8px;
-      padding:8px 14px !important;
-      margin-bottom:6px;
-      break-after:avoid !important;
-      page-break-after:avoid !important;
-      break-inside:avoid !important;
-    }
-    .sheet-head .title{ color:#111 !important; font-size:13px !important; }
-    .sheet-head .date{ background:transparent !important; color:#111 !important; font-weight:700; font-size:12px !important; padding:0 !important; }
-    .sheet-columns{
-      display:grid !important;
-      grid-template-columns:1fr 1fr !important;
-      gap:0 !important;
-      align-items:start;
-    }
-    .sheet-group{
-      break-inside:avoid;
-      border:1px solid #000;
-    }
-    .sheet-group-title{ background:#fff !important; color:#000 !important; font-size:11px !important; padding:5px 10px !important; }
-    .sheet-dish{ break-inside:avoid; padding:6px 12px 8px !important; }
-    .sheet-dish-name{ font-size:11.5px !important; margin-bottom:4px !important; }
-    table.ing-table{ font-size:10px !important; }
-    table.ing-table td{ padding:2px 3px !important; }
-    table.ing-table thead td{ font-size:8.5px !important; }
-    table.ing-table td.qty.total{ color:#000 !important; }
+    .ticket{ border:none !important; border-radius:0 !important; padding:0 !important; }
+    .ticket-datebar{ break-after:avoid !important; break-inside:avoid !important; }
+    .ticket-columns{ column-gap:14px !important; }
+    .ticket-group{ break-inside:auto !important; }
+    .ticket-group-bar{ break-after:avoid !important; break-inside:avoid !important; }
+    .ticket-dish-title{ break-after:avoid !important; }
+    .ticket-table tr{ break-inside:avoid !important; }
     .sheet-day{ margin:0 !important; }
     .sheet-day:not(:first-child){ break-before:page; page-break-before:always; }
     .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
@@ -1755,11 +1745,11 @@ function initApp(){
       });
     }
 
-    let html = `<div class="sheet">
-      <div class="sheet-head">
-        <div class="title">Planilla de Producción</div>
-        <div class="date">${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(fecha)}</div>
-      </div>`;
+    let html = `<div class="ticket">
+      <div class="ticket-titlebar">
+        <div class="ticket-title">Planilla de Producción</div>
+      </div>
+      <div class="ticket-datebar">${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(fecha)}</div>`;
 
     if(!lista){
       html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div>`;
@@ -1768,44 +1758,42 @@ function initApp(){
 
     function construirGrupoHtml(grupo){
       const groupEntries = entriesPorGrupo[grupo];
-      let h = `<div class="sheet-group">
-        <div class="sheet-group-title">${grupo}</div>`;
+      let h = `<div class="ticket-group">
+        <div class="ticket-group-bar">
+          <span>${grupo}</span>
+          <span class="ticket-group-date">${fmtDateHuman(fecha)}</span>
+        </div>`;
       if(groupEntries.length===0){
         h += `<div class="no-entries">Sin platos para este grupo en la lista "${escapeHtml(lista.nombre)}".</div>`;
       } else {
         groupEntries.forEach(e=>{
           const rec = recipes.find(r=>r.id===e.recipeId);
           if(!rec) return;
-          h += `<div class="sheet-dish">
-            <div class="sheet-dish-name">${escapeHtml(rec.name)}<span class="rac-badge">${e.raciones} RAC.</span></div>
-            <table class="ing-table">
-              <thead><tr><td>Ingrediente</td><td class="qty">Por ración</td><td class="qty">Total</td></tr></thead>
-              <tbody>`;
+          h += `<div class="ticket-dish-title">${e.raciones} RAC. DE ${escapeHtml(rec.name.toUpperCase())}</div>
+            <table class="ticket-table"><tbody>`;
           rec.ingredients.forEach(ing=>{
             const total = ing.qty * e.raciones;
             h += `<tr>
-              <td>${escapeHtml(ing.name)}</td>
-              <td class="qty">${fmtNum(ing.qty)} ${ing.unit}</td>
-              <td class="qty total">${fmtTotalConversion(total, ing.unit)}</td>
+              <td class="ti-name">${escapeHtml(ing.name.toUpperCase())}</td>
+              <td class="ti-unit">${fmtNum(ing.qty)} ${ing.unit.toUpperCase()}</td>
+              <td class="ti-total">${fmtTotalConversion(total, ing.unit)}</td>
             </tr>`;
           });
-          h += `</tbody></table></div>`;
+          h += `</tbody></table>`;
         });
       }
       h += `</div>`;
       return h;
     }
 
-    html += `<div class="sheet-columns">
+    html += `<div class="ticket-columns">
       ${construirGrupoHtml('PACIENTE ALMUERZO')}
       ${construirGrupoHtml('PACIENTE CENA')}
       ${construirGrupoHtml('PERSONAL ALMUERZO')}
       ${construirGrupoHtml('PERSONAL CENA')}
     </div>`;
 
-    html += `
-      <div class="no-entries lista-aplicada">Lista aplicada: <b>${escapeHtml(lista.nombre)}</b></div>
-    </div>`;
+    html += `</div>`;
     return html;
   }
 
