@@ -271,6 +271,13 @@
     background:var(--surface);
   }
   .recipe-chip:hover{ box-shadow:var(--elev-1); }
+  .recipe-chip.highlight{
+    animation: recipeHighlight 1.8s ease;
+  }
+  @keyframes recipeHighlight{
+    0%, 100% { background:var(--surface); box-shadow:none; }
+    20% { background:var(--accent-tint); box-shadow:0 0 0 2px var(--accent); }
+  }
   .recipe-chip .info{ flex:1; min-width:0; }
   .recipe-chip .info b{ font-family:var(--font); font-weight:600; text-transform:none; font-size:13.5px; color:var(--ink); }
   .recipe-chip .info .tag{
@@ -335,23 +342,6 @@
     min-width:260px;
     display:flex;
     flex-direction:column;
-  }
-  .prep-title{
-    font-family:var(--font);
-    font-weight:700;
-    font-size:16px;
-    margin-bottom:2px;
-    color:var(--ink);
-  }
-  .prep-tag{
-    display:inline-block;
-    font-size:10.5px;
-    background:var(--accent-tint);
-    color:var(--accent-dark);
-    padding:2px 8px;
-    border-radius:20px;
-    font-weight:600;
-    margin-bottom:12px;
   }
   .prep-label{
     font-weight:700;
@@ -850,7 +840,13 @@
     </div>
 
     <div class="card">
-      <h2><span class="n" id="recipeCount">0</span> Recetas guardadas</h2>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+        <h2 style="margin:0;"><span class="n" id="recipeCount">0</span> Recetas guardadas</h2>
+        <div style="position:relative; flex:1; max-width:280px; min-width:180px;">
+          <input type="text" id="recipeSearchInput" placeholder="Buscar receta..." autocomplete="off">
+          <div class="ms-panel" id="recipeSearchSuggest"></div>
+        </div>
+      </div>
       <div id="recipeList" class="recipe-list"></div>
     </div>
   </section>
@@ -1382,6 +1378,7 @@ function initApp(){
     recipes.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(rec=>{
       const div = document.createElement('div');
       div.className = 'recipe-chip';
+      div.id = `recipe-chip-${rec.id}`;
       const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
       const ingsPreview = rec.ingredients.map(i=>`${i.name} (${fmtNum(i.qty)} ${i.unit})`).join(' · ');
       div.innerHTML = `
@@ -1399,6 +1396,62 @@ function initApp(){
     $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editRecipe(b.dataset.id)));
     $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteRecipe(b.dataset.id)));
   }
+
+  // ---------- Búsqueda de recetas (primeras 6 letras) ----------
+  const recipeSearchInput = $('#recipeSearchInput');
+  const recipeSearchSuggest = $('#recipeSearchSuggest');
+
+  function irAReceta(id){
+    const chip = $(`#recipe-chip-${id}`);
+    if(!chip) return;
+    chip.scrollIntoView({ behavior:'smooth', block:'center' });
+    chip.classList.remove('highlight');
+    void chip.offsetWidth; // fuerza el reinicio de la animación si se busca la misma dos veces
+    chip.classList.add('highlight');
+    recipeSearchInput.value = '';
+    recipeSearchSuggest.classList.remove('open');
+    recipeSearchSuggest.innerHTML = '';
+  }
+
+  recipeSearchInput.addEventListener('input', ()=>{
+    const texto = recipeSearchInput.value.trim();
+    if(texto.length === 0 || texto.length > 6){
+      recipeSearchSuggest.classList.remove('open');
+      recipeSearchSuggest.innerHTML = '';
+      return;
+    }
+    const coincidencias = recipes.filter(r =>
+      r.name.toLowerCase().includes(texto.toLowerCase())
+    ).slice(0, 8);
+    if(coincidencias.length === 0){
+      recipeSearchSuggest.innerHTML = '<div class="ms-empty">Sin coincidencias.</div>';
+      recipeSearchSuggest.classList.add('open');
+      return;
+    }
+    recipeSearchSuggest.innerHTML = coincidencias.map(r => `
+      <div class="ms-option" data-id="${r.id}">
+        ${escapeHtml(r.name)}
+        <span style="margin-left:6px; font-size:10px; font-weight:600; color:var(--accent-dark); background:var(--accent-tint); padding:2px 7px; border-radius:20px;">${r.group==='pacientes' ? 'PACIENTES' : 'PERSONAL'}</span>
+      </div>
+    `).join('');
+    recipeSearchSuggest.classList.add('open');
+    $$('.ms-option', recipeSearchSuggest).forEach(opt=>{
+      opt.addEventListener('click', ()=> irAReceta(opt.dataset.id));
+    });
+  });
+
+  recipeSearchInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      const primera = recipeSearchSuggest.querySelector('.ms-option');
+      if(primera) irAReceta(primera.dataset.id);
+    }
+  });
+
+  document.addEventListener('click', (e)=>{
+    if(e.target !== recipeSearchInput && !recipeSearchSuggest.contains(e.target)){
+      recipeSearchSuggest.classList.remove('open');
+    }
+  });
 
   // ---------- Ver foto en tamaño completo (se usa desde Preparaciones) ----------
   function abrirImagenCompleta(dataUrl){
@@ -1434,6 +1487,7 @@ function initApp(){
     await saveRecipes();
     await borrarImagenReceta(id); // se borra sola, sin que haga falta acordarse
     renderRecipeList();
+    if($('#panel-preparaciones').classList.contains('active')) renderPreparaciones();
   }
 
   // ---------- PREPARACIONES ----------
@@ -1445,7 +1499,6 @@ function initApp(){
     }
     box.innerHTML = '';
     recipes.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(rec=>{
-      const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
       const card = document.createElement('div');
       card.className = 'prep-card';
       card.innerHTML = `
@@ -1457,12 +1510,13 @@ function initApp(){
           <div class="prep-image-status" id="prep-imgstatus-${rec.id}"></div>
         </div>
         <div class="prep-text-col">
-          <div class="prep-title">${escapeHtml(rec.name)}</div>
-          <span class="prep-tag">${groupLabel}</span>
+          <label style="margin-bottom:2px;">Nombre a mostrar</label>
+          <input type="text" class="prep-name-input" id="prep-name-${rec.id}" placeholder="Escribí algo moni" value="${escapeHtml(rec.prepNombre || '')}" style="margin-bottom:12px;">
           <div class="prep-label">PREPARACIÓN</div>
           <textarea class="prep-textarea" id="prep-text-${rec.id}" placeholder="Método de cocción, tiempos, técnica, cómo se presenta el plato...">${escapeHtml(rec.preparacion || '')}</textarea>
           <div class="prep-save-row">
             <button class="btn btn-primary btn-small" data-act="save-prep" data-id="${rec.id}">Guardar preparación</button>
+            <button class="btn btn-danger btn-small" data-act="delete-prep" data-id="${rec.id}">Eliminar tarjeta</button>
             <span class="prep-save-status" id="prep-savestatus-${rec.id}"></span>
           </div>
         </div>
@@ -1477,12 +1531,18 @@ function initApp(){
         const rec = recipes.find(r=>r.id===id);
         if(!rec) return;
         rec.preparacion = $(`#prep-text-${id}`).value;
+        rec.prepNombre = $(`#prep-name-${id}`).value;
         const status = $(`#prep-savestatus-${id}`);
         status.textContent = 'Guardando...';
         await saveRecipes();
         status.textContent = 'Guardado ✓';
         setTimeout(()=>{ status.textContent = ''; }, 2500);
       });
+    });
+
+    // Botón "Eliminar tarjeta" (borra la receta completa, igual que en Recetario)
+    $$('[data-act="delete-prep"]', box).forEach(btn=>{
+      btn.addEventListener('click', ()=> deleteRecipe(btn.dataset.id));
     });
 
     // Subir foto: se comprime y se guarda aparte, sin tocar el resto de los datos
