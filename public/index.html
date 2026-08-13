@@ -263,14 +263,26 @@
   .recipe-chip{
     border:1px solid var(--border);
     border-radius:12px;
-    padding:12px 14px;
+    padding:13.8px 14px;
     display:flex;
     justify-content:space-between;
     align-items:center;
-    gap:10px;
+    gap:12px;
     background:var(--surface);
+    min-height:69px;
+    box-sizing:border-box;
   }
   .recipe-chip:hover{ box-shadow:var(--elev-1); }
+  .recipe-chip .thumb{
+    width:52px;
+    height:52px;
+    border-radius:9px;
+    object-fit:cover;
+    flex-shrink:0;
+    background:var(--paper-dark);
+    border:1px solid var(--border);
+  }
+  .recipe-chip .info{ flex:1; min-width:0; }
   .recipe-chip .info b{ font-family:var(--font); font-weight:600; text-transform:none; font-size:13.5px; color:var(--ink); }
   .recipe-chip .info .tag{
     display:inline-block;
@@ -1313,6 +1325,7 @@ function initApp(){
       const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
       const ingsPreview = rec.ingredients.map(i=>`${i.name} (${fmtNum(i.qty)} ${i.unit})`).join(' · ');
       div.innerHTML = `
+        <img class="thumb" id="thumb-${rec.id}" src="" alt="" style="display:none;">
         <div class="info">
           <b>${escapeHtml(rec.name)}</b><span class="tag">${groupLabel}</span>
           <div class="ings">${escapeHtml(ingsPreview)}</div>
@@ -1326,6 +1339,28 @@ function initApp(){
     });
     $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editRecipe(b.dataset.id)));
     $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteRecipe(b.dataset.id)));
+    cargarMiniaturasRecetas(box);
+  }
+
+  // Carga las fotos de las recetas que tengan, sin frenar el resto de
+  // la pantalla (se van completando solas a medida que llegan).
+  async function cargarMiniaturasRecetas(box){
+    try{
+      const resp = await fetch(`${API_URL}/imagenes`);
+      if(!resp.ok) return;
+      const idsConFoto = await resp.json();
+      idsConFoto.forEach(async (id)=>{
+        const img = box.querySelector(`#thumb-${id}`);
+        if(!img) return;
+        const dataUrl = await traerImagenReceta(id);
+        if(dataUrl){
+          img.src = dataUrl;
+          img.style.display = '';
+        }
+      });
+    }catch(e){
+      console.warn('No se pudieron cargar las miniaturas de las recetas', e);
+    }
   }
 
   function editRecipe(id){
