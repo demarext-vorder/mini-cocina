@@ -1540,9 +1540,10 @@ function initApp(){
       });
     });
 
-    // Botón "Eliminar tarjeta" (borra la receta completa, igual que en Recetario)
+    // Botón "Eliminar tarjeta" (solo borra la foto y el texto de esta preparación --
+    // la receta en sí, con sus ingredientes, queda intacta en Recetario y en los menúes)
     $$('[data-act="delete-prep"]', box).forEach(btn=>{
-      btn.addEventListener('click', ()=> deleteRecipe(btn.dataset.id));
+      btn.addEventListener('click', ()=> eliminarTarjetaPreparacion(btn.dataset.id));
     });
 
     // Subir foto: se comprime y se guarda aparte, sin tocar el resto de los datos
@@ -1582,6 +1583,18 @@ function initApp(){
     if(!frame) return;
     frame.innerHTML = `<img src="${dataUrl}" alt="" title="Doble clic para ver en grande">`;
     frame.querySelector('img').addEventListener('dblclick', ()=> abrirImagenCompleta(dataUrl));
+  }
+
+  async function eliminarTarjetaPreparacion(id){
+    if(!confirm('¿Borrar la foto y el texto de preparación de este plato? La receta y sus ingredientes NO se van a tocar, siguen intactos en Recetario.')) return;
+    const rec = recipes.find(r=>r.id===id);
+    if(rec){
+      rec.preparacion = '';
+      rec.prepNombre = '';
+      await saveRecipes();
+    }
+    await borrarImagenReceta(id);
+    renderPreparaciones();
   }
 
   // ---------- MENÚES ----------
