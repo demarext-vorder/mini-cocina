@@ -648,7 +648,13 @@
     .sheet-day{ margin:0 !important; }
     .sheet-day:not(:first-child){ break-before:page; page-break-before:always; }
     .app, .card, nav.tabs, .toolbar{ padding:0; margin:0; }
-    @page{ size:A4; margin:20mm 10mm; }
+    @page{
+      size: A4;
+      margin-top: 2cm;
+      margin-bottom: 2cm;
+      margin-left: 1cm;
+      margin-right: 1cm;
+    }
   }
 
   ::selection{ background:var(--accent-tint); color:var(--accent-dark); }
