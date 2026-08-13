@@ -263,26 +263,14 @@
   .recipe-chip{
     border:1px solid var(--border);
     border-radius:12px;
-    padding:8px 14px;
+    padding:12px 14px;
     display:flex;
     justify-content:space-between;
     align-items:center;
-    gap:12px;
+    gap:10px;
     background:var(--surface);
-    height:90px;
-    box-sizing:border-box;
-    overflow:hidden;
   }
   .recipe-chip:hover{ box-shadow:var(--elev-1); }
-  .recipe-chip .thumb{
-    width:74px;
-    height:74px;
-    border-radius:9px;
-    object-fit:cover;
-    flex-shrink:0;
-    background:var(--paper-dark);
-    border:1px solid var(--border);
-  }
   .recipe-chip .info{ flex:1; min-width:0; }
   .recipe-chip .info b{ font-family:var(--font); font-weight:600; text-transform:none; font-size:13.5px; color:var(--ink); }
   .recipe-chip .info .tag{
@@ -298,6 +286,99 @@
   }
   .recipe-chip .info .ings{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
   .recipe-chip .actions{ display:flex; gap:6px; flex-shrink:0; }
+
+  /* --- Preparaciones: tarjeta imagen + método --- */
+  .prep-card{
+    display:flex;
+    flex-wrap:wrap;
+    gap:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:18px;
+    margin-bottom:16px;
+    box-shadow:var(--elev-1);
+  }
+  .prep-image-col{
+    flex:1 1 480px;
+    max-width:960px;
+    min-width:260px;
+  }
+  .prep-image-frame{
+    width:100%;
+    aspect-ratio:4/3;
+    border:1.5px dashed var(--border-strong);
+    border-radius:12px;
+    background:var(--paper);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    position:relative;
+  }
+  .prep-image-frame img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    cursor:zoom-in;
+  }
+  .prep-image-frame .prep-placeholder{
+    color:var(--ink-soft);
+    font-size:13px;
+    text-align:center;
+    padding:20px;
+  }
+  .prep-image-input{ margin-top:10px; width:100%; }
+  .prep-image-status{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+  .prep-text-col{
+    flex:1 1 320px;
+    min-width:260px;
+    display:flex;
+    flex-direction:column;
+  }
+  .prep-title{
+    font-family:var(--font);
+    font-weight:700;
+    font-size:16px;
+    margin-bottom:2px;
+    color:var(--ink);
+  }
+  .prep-tag{
+    display:inline-block;
+    font-size:10.5px;
+    background:var(--accent-tint);
+    color:var(--accent-dark);
+    padding:2px 8px;
+    border-radius:20px;
+    font-weight:600;
+    margin-bottom:12px;
+  }
+  .prep-label{
+    font-weight:700;
+    letter-spacing:.04em;
+    font-size:13px;
+    color:var(--accent-dark);
+    border-bottom:2px solid var(--accent);
+    padding-bottom:6px;
+    margin-bottom:10px;
+    width:fit-content;
+  }
+  .prep-textarea{
+    flex:1;
+    min-height:160px;
+    resize:vertical;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:10px 12px;
+    font-family:var(--font);
+    font-size:13.5px;
+    line-height:1.6;
+    color:var(--ink);
+    background:var(--paper);
+  }
+  .prep-textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-tint); }
+  .prep-save-row{ margin-top:10px; display:flex; align-items:center; gap:10px; }
+  .prep-save-status{ font-size:11.5px; color:var(--ink-soft); }
 
   .empty{
     text-align:center;
@@ -734,6 +815,7 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="recetario">Recetario</button>
+    <button class="tab-btn" data-tab="preparaciones">Preparaciones</button>
     <button class="tab-btn" data-tab="menues">Menúes</button>
     <button class="tab-btn" data-tab="listas">Listas</button>
     <button class="tab-btn" data-tab="imprimir">Imprimir</button>
@@ -761,14 +843,6 @@
       <div id="ingredientsBuilder"></div>
       <button class="ghost-add" id="addIngRow">+ Agregar ingrediente</button>
 
-      <label style="margin-top:12px">Foto del plato (opcional)</label>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <img id="recipePhotoPreview" alt="" style="display:none; width:64px; height:64px; object-fit:cover; border-radius:10px; border:1px solid var(--border);">
-        <input type="file" id="recipePhotoInput" accept="image/*" style="flex:1;">
-        <button class="btn btn-small btn-danger" id="removeRecipePhotoBtn" style="display:none;">Quitar foto</button>
-      </div>
-      <div id="recipePhotoStatus" style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;"></div>
-
       <div style="margin-top:12px; display:flex; gap:8px;">
         <button class="btn btn-primary" id="saveRecipeBtn">Guardar receta</button>
         <button class="btn btn-ghost" id="clearRecipeForm">Limpiar</button>
@@ -779,6 +853,11 @@
       <h2><span class="n" id="recipeCount">0</span> Recetas guardadas</h2>
       <div id="recipeList" class="recipe-list"></div>
     </div>
+  </section>
+
+  <!-- ================= PREPARACIONES ================= -->
+  <section class="panel" id="panel-preparaciones">
+    <div id="prepList"></div>
   </section>
 
   <!-- ================= MENÚES ================= -->
@@ -1123,6 +1202,7 @@ function initApp(){
       $$('.panel').forEach(p=>p.classList.remove('active'));
       btn.classList.add('active');
       $('#panel-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab === 'preparaciones') renderPreparaciones();
       if(btn.dataset.tab === 'menues') renderMenuList();
       if(btn.dataset.tab === 'listas'){ renderListaList(); cargarFormularioCiclo(); }
       if(btn.dataset.tab === 'imprimir') renderPrintArea();
@@ -1259,49 +1339,6 @@ function initApp(){
 
   $('#clearRecipeForm').addEventListener('click', resetRecipeForm);
 
-  // Estado de la foto que se está por guardar en el formulario actual
-  let fotoPendiente = null;   // dataURL nueva elegida (o null si no cambió nada)
-  let fotoFueQuitada = false; // true si el usuario tocó "Quitar foto"
-
-  function mostrarPreviewFoto(dataUrl){
-    const img = $('#recipePhotoPreview');
-    const btnQuitar = $('#removeRecipePhotoBtn');
-    if(dataUrl){
-      img.src = dataUrl;
-      img.style.display = '';
-      btnQuitar.style.display = '';
-    } else {
-      img.src = '';
-      img.style.display = 'none';
-      btnQuitar.style.display = 'none';
-    }
-  }
-
-  $('#recipePhotoInput').addEventListener('change', async (e)=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    $('#recipePhotoStatus').textContent = 'Comprimiendo imagen...';
-    try{
-      const dataUrl = await comprimirImagen(file);
-      fotoPendiente = dataUrl;
-      fotoFueQuitada = false;
-      mostrarPreviewFoto(dataUrl);
-      const kb = Math.round(dataUrl.length * 0.75 / 1024);
-      $('#recipePhotoStatus').textContent = `Lista para guardar (~${kb} KB).`;
-    }catch(err){
-      console.error(err);
-      $('#recipePhotoStatus').textContent = 'No se pudo procesar la imagen.';
-    }
-  });
-
-  $('#removeRecipePhotoBtn').addEventListener('click', ()=>{
-    fotoPendiente = null;
-    fotoFueQuitada = true;
-    mostrarPreviewFoto(null);
-    $('#recipePhotoInput').value = '';
-    $('#recipePhotoStatus').textContent = 'Se va a quitar la foto al guardar.';
-  });
-
   function resetRecipeForm(){
     $('#newRecipeName').value = '';
     $('#newRecipeGroup').value = 'pacientes';
@@ -1311,11 +1348,6 @@ function initApp(){
     $('#saveRecipeBtn').textContent = 'Guardar receta';
     nombreSuggest.classList.remove('open');
     nombreSuggest.innerHTML = '';
-    fotoPendiente = null;
-    fotoFueQuitada = false;
-    $('#recipePhotoInput').value = '';
-    $('#recipePhotoStatus').textContent = '';
-    mostrarPreviewFoto(null);
   }
 
   $('#saveRecipeBtn').addEventListener('click', async ()=>{
@@ -1328,24 +1360,13 @@ function initApp(){
     if(ings.length === 0){ alert('Agregá al menos un ingrediente con cantidad.'); return; }
 
     const editingId = $('#saveRecipeBtn').dataset.editing;
-    let recetaId;
     if(editingId){
-      recetaId = editingId;
       const idx = recipes.findIndex(r=>r.id===editingId);
       if(idx>=0) recipes[idx] = {...recipes[idx], name, group, ingredients: ings};
     } else {
-      recetaId = uid();
-      recipes.push({id:recetaId, name, group, ingredients: ings});
+      recipes.push({id:uid(), name, group, ingredients: ings, preparacion: ''});
     }
     await saveRecipes();
-
-    // La foto se sube/borra aparte, sin tocar para nada el guardado de arriba.
-    if(fotoPendiente){
-      await subirImagenReceta(recetaId, fotoPendiente);
-    } else if(fotoFueQuitada){
-      await borrarImagenReceta(recetaId);
-    }
-
     resetRecipeForm();
     renderRecipeList();
   });
@@ -1364,7 +1385,6 @@ function initApp(){
       const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
       const ingsPreview = rec.ingredients.map(i=>`${i.name} (${fmtNum(i.qty)} ${i.unit})`).join(' · ');
       div.innerHTML = `
-        <img class="thumb" id="thumb-${rec.id}" src="" alt="" style="display:none;">
         <div class="info">
           <b>${escapeHtml(rec.name)}</b><span class="tag">${groupLabel}</span>
           <div class="ings">${escapeHtml(ingsPreview)}</div>
@@ -1378,34 +1398,9 @@ function initApp(){
     });
     $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editRecipe(b.dataset.id)));
     $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteRecipe(b.dataset.id)));
-    cargarMiniaturasRecetas(box);
   }
 
-  // Carga las fotos de las recetas que tengan, sin frenar el resto de
-  // la pantalla (se van completando solas a medida que llegan).
-  async function cargarMiniaturasRecetas(box){
-    try{
-      const resp = await fetch(`${API_URL}/imagenes`);
-      if(!resp.ok) return;
-      const idsConFoto = await resp.json();
-      idsConFoto.forEach(async (id)=>{
-        const img = box.querySelector(`#thumb-${id}`);
-        if(!img) return;
-        const dataUrl = await traerImagenReceta(id);
-        if(dataUrl){
-          img.src = dataUrl;
-          img.style.display = '';
-          img.style.cursor = 'zoom-in';
-          img.title = 'Doble clic para ver en grande';
-          img.addEventListener('dblclick', ()=> abrirImagenCompleta(dataUrl));
-        }
-      });
-    }catch(e){
-      console.warn('No se pudieron cargar las miniaturas de las recetas', e);
-    }
-  }
-
-  // ---------- Ver foto en tamaño completo ----------
+  // ---------- Ver foto en tamaño completo (se usa desde Preparaciones) ----------
   function abrirImagenCompleta(dataUrl){
     $('#imagePreviewImg').src = dataUrl;
     $('#imagePreviewOverlay').classList.add('open');
@@ -1428,30 +1423,105 @@ function initApp(){
     renderIngBuilder();
     $('#saveRecipeBtn').dataset.editing = id;
     $('#saveRecipeBtn').textContent = 'Guardar cambios';
-    fotoPendiente = null;
-    fotoFueQuitada = false;
-    $('#recipePhotoInput').value = '';
-    mostrarPreviewFoto(null);
-    $('#recipePhotoStatus').textContent = 'Buscando foto guardada...';
-    traerImagenReceta(id).then(dataUrl=>{
-      if(dataUrl){
-        mostrarPreviewFoto(dataUrl);
-        $('#recipePhotoStatus').textContent = 'Foto ya guardada (elegí otra para reemplazarla).';
-      } else {
-        $('#recipePhotoStatus').textContent = 'Esta receta todavía no tiene foto.';
-      }
-    });
     window.scrollTo({top:0, behavior:'smooth'});
     document.querySelector('[data-tab="recetario"]').click();
   }
 
   async function deleteRecipe(id){
-    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida, junto con su foto si tenía.')) return;
+    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida, junto con su foto y preparación si tenía.')) return;
     recipes = recipes.filter(r=>r.id!==id);
     menus.forEach(m=>{ m.items = m.items.filter(it=>it.recipeId!==id); });
     await saveRecipes();
     await borrarImagenReceta(id); // se borra sola, sin que haga falta acordarse
     renderRecipeList();
+  }
+
+  // ---------- PREPARACIONES ----------
+  function renderPreparaciones(){
+    const box = $('#prepList');
+    if(recipes.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no cargaste ninguna receta.<br>Cargalas primero en la pestaña "Recetario".</div>';
+      return;
+    }
+    box.innerHTML = '';
+    recipes.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(rec=>{
+      const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
+      const card = document.createElement('div');
+      card.className = 'prep-card';
+      card.innerHTML = `
+        <div class="prep-image-col">
+          <div class="prep-image-frame" id="prep-frame-${rec.id}">
+            <div class="prep-placeholder">Sin foto todavía</div>
+          </div>
+          <input type="file" class="prep-image-input" accept="image/*" data-id="${rec.id}">
+          <div class="prep-image-status" id="prep-imgstatus-${rec.id}"></div>
+        </div>
+        <div class="prep-text-col">
+          <div class="prep-title">${escapeHtml(rec.name)}</div>
+          <span class="prep-tag">${groupLabel}</span>
+          <div class="prep-label">PREPARACIÓN</div>
+          <textarea class="prep-textarea" id="prep-text-${rec.id}" placeholder="Método de cocción, tiempos, técnica, cómo se presenta el plato...">${escapeHtml(rec.preparacion || '')}</textarea>
+          <div class="prep-save-row">
+            <button class="btn btn-primary btn-small" data-act="save-prep" data-id="${rec.id}">Guardar preparación</button>
+            <span class="prep-save-status" id="prep-savestatus-${rec.id}"></span>
+          </div>
+        </div>
+      `;
+      box.appendChild(card);
+    });
+
+    // Botón "Guardar preparación" de cada tarjeta (guarda el texto, junto al resto de la receta)
+    $$('[data-act="save-prep"]', box).forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.id;
+        const rec = recipes.find(r=>r.id===id);
+        if(!rec) return;
+        rec.preparacion = $(`#prep-text-${id}`).value;
+        const status = $(`#prep-savestatus-${id}`);
+        status.textContent = 'Guardando...';
+        await saveRecipes();
+        status.textContent = 'Guardado ✓';
+        setTimeout(()=>{ status.textContent = ''; }, 2500);
+      });
+    });
+
+    // Subir foto: se comprime y se guarda aparte, sin tocar el resto de los datos
+    $$('.prep-image-input', box).forEach(input=>{
+      input.addEventListener('change', async (e)=>{
+        const id = input.dataset.id;
+        const file = e.target.files[0];
+        if(!file) return;
+        const status = $(`#prep-imgstatus-${id}`);
+        status.textContent = 'Comprimiendo y subiendo imagen...';
+        try{
+          const dataUrl = await comprimirImagen(file, 960, 0.75);
+          const ok = await subirImagenReceta(id, dataUrl);
+          if(ok){
+            mostrarImagenEnTarjeta(id, dataUrl);
+            status.textContent = 'Foto guardada ✓';
+            setTimeout(()=>{ status.textContent = ''; }, 2500);
+          } else {
+            status.textContent = 'No se pudo guardar la foto.';
+          }
+        }catch(err){
+          console.error(err);
+          status.textContent = 'No se pudo procesar la imagen.';
+        }
+      });
+    });
+
+    // Cargamos las fotos que ya existan, una por una, sin frenar la pantalla
+    recipes.forEach(async (rec)=>{
+      const dataUrl = await traerImagenReceta(rec.id);
+      if(dataUrl) mostrarImagenEnTarjeta(rec.id, dataUrl);
+    });
+  }
+
+  function mostrarImagenEnTarjeta(recetaId, dataUrl){
+    const frame = $(`#prep-frame-${recetaId}`);
+    if(!frame) return;
+    frame.innerHTML = `<img src="${dataUrl}" alt="" title="Doble clic para ver en grande">`;
+    frame.querySelector('img').addEventListener('dblclick', ()=> abrirImagenCompleta(dataUrl));
   }
 
   // ---------- MENÚES ----------
