@@ -18,7 +18,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('node:path');
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '5mb' })); // 5mb alcanza de sobra para una foto ya comprimida
 
 // Sirve la webapp de la cocina (la carpeta "public") en la dirección principal.
 app.use(express.static(path.join(__dirname, 'public')));
@@ -47,6 +47,15 @@ async function prepararBaseDeDatos(){
     CREATE TABLE IF NOT EXISTS datos_cocina (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       contenido TEXT NOT NULL
+    )
+  `);
+  // Tabla aparte solo para las fotos de las recetas. Al vivir separada,
+  // subir o cambiar una foto no tiene nada que ver con guardar recetas,
+  // menúes, listas, etc. -- son guardados totalmente independientes.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS imagenes_recetas (
+      receta_id TEXT PRIMARY KEY,
+      imagen TEXT NOT NULL
     )
   `);
   console.log('Base de datos lista.');
@@ -101,6 +110,71 @@ app.put('/datos', verificarContrasena, async (req, res) => {
   }catch(err){
     console.error('Error guardando en la base de datos:', err.message);
     res.status(500).json({ error: 'No se pudo guardar' });
+  }
+});
+
+// ------------------------------------------------------------------
+// Imágenes de recetas (tabla separada -- ver comentario más arriba)
+// ------------------------------------------------------------------
+
+// PEDIDO: "Decime qué recetas tienen foto" (liviano: solo ids, sin la imagen en sí)
+app.get('/imagenes', async (req, res) => {
+  try{
+    const resultado = await pool.query('SELECT receta_id FROM imagenes_recetas');
+    res.json(resultado.rows.map(r => r.receta_id));
+  }catch(err){
+    console.error('Error listando imágenes:', err.message);
+    res.status(500).json({ error: 'No se pudo leer la lista de imágenes' });
+  }
+});
+
+// PEDIDO: "Dame la foto de esta receta puntual" (libre, sin contraseña)
+app.get('/imagenes/:recetaId', async (req, res) => {
+  try{
+    const resultado = await pool.query(
+      'SELECT imagen FROM imagenes_recetas WHERE receta_id = $1',
+      [req.params.recetaId]
+    );
+    if(resultado.rows.length === 0){
+      return res.status(404).json({ error: 'Esta receta no tiene foto guardada' });
+    }
+    res.json({ recetaId: req.params.recetaId, imagen: resultado.rows[0].imagen });
+  }catch(err){
+    console.error('Error leyendo imagen:', err.message);
+    res.status(500).json({ error: 'No se pudo leer la imagen' });
+  }
+});
+
+// PEDIDO: "Guardá/reemplazá la foto de esta receta" (PIDE CONTRASEÑA)
+app.put('/imagenes/:recetaId', verificarContrasena, async (req, res) => {
+  try{
+    const imagen = req.body && req.body.imagen;
+    if(!imagen){
+      return res.status(400).json({ error: 'Falta la imagen' });
+    }
+    await pool.query(`
+      INSERT INTO imagenes_recetas (receta_id, imagen) VALUES ($1, $2)
+      ON CONFLICT (receta_id) DO UPDATE SET imagen = EXCLUDED.imagen
+    `, [req.params.recetaId, imagen]);
+    console.log('Se guardó la foto de la receta', req.params.recetaId);
+    res.json({ mensaje: 'Imagen guardada correctamente' });
+  }catch(err){
+    console.error('Error guardando imagen:', err.message);
+    res.status(500).json({ error: 'No se pudo guardar la imagen' });
+  }
+});
+
+// PEDIDO: "Borrá la foto de esta receta" (PIDE CONTRASEÑA)
+// Se usa tanto si el usuario saca la foto de una receta, como
+// automáticamente cuando se borra la receta entera.
+app.delete('/imagenes/:recetaId', verificarContrasena, async (req, res) => {
+  try{
+    await pool.query('DELETE FROM imagenes_recetas WHERE receta_id = $1', [req.params.recetaId]);
+    console.log('Se borró la foto de la receta', req.params.recetaId);
+    res.json({ mensaje: 'Imagen borrada correctamente' });
+  }catch(err){
+    console.error('Error borrando imagen:', err.message);
+    res.status(500).json({ error: 'No se pudo borrar la imagen' });
   }
 });
 
