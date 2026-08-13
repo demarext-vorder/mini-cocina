@@ -853,6 +853,9 @@
 
   <!-- ================= PREPARACIONES ================= -->
   <section class="panel" id="panel-preparaciones">
+    <div style="margin-bottom:14px;">
+      <button class="btn btn-primary" id="addPrepCardBtn">+ Nueva preparación</button>
+    </div>
     <div id="prepList"></div>
   </section>
 
@@ -1006,6 +1009,7 @@ function initApp(){
   let ciclo = { fechaInicio: '', secuenciaListaIds: [] }; // ciclo rotativo día por día
   let horario = {};      // sistema viejo (día de semana -> lista), ya no se usa, se conserva por compatibilidad
   let menusByDate = {};  // ya no se usa para armar la planilla, se deja solo por compatibilidad
+  let preparaciones = []; // [{id, nombre, texto}] -- totalmente independiente de recipes/menus/listas
   let currentIngRows = [];
   let currentMenuItems = [];   // para el formulario de "Nuevo menú"
   let currentListaMenuIds = []; // para el formulario de "Nueva lista"
@@ -1073,10 +1077,11 @@ function initApp(){
       ciclo = (data.ciclo && typeof data.ciclo === 'object') ? data.ciclo : { fechaInicio: '', secuenciaListaIds: [] };
       horario = (data.horario && typeof data.horario === 'object') ? data.horario : {};
       menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
+      preparaciones = Array.isArray(data.preparaciones) ? data.preparaciones : [];
       connStatus.textContent = 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.';
     }catch(e){
       console.error('No se pudo conectar con el servidor', e);
-      recipes = []; menus = []; listas = []; ciclo = { fechaInicio: '', secuenciaListaIds: [] }; horario = {}; menusByDate = {};
+      recipes = []; menus = []; listas = []; ciclo = { fechaInicio: '', secuenciaListaIds: [] }; horario = {}; menusByDate = {}; preparaciones = [];
       connStatus.textContent = 'Sin conexión con el servidor. Revisá tu internet y recargá la página.';
     }
   }
@@ -1090,7 +1095,7 @@ function initApp(){
           'Content-Type': 'application/json',
           'X-App-Password': appPassword || ''
         },
-        body: JSON.stringify({ recipes, menus, listas, ciclo, horario, menusByDate })
+        body: JSON.stringify({ recipes, menus, listas, ciclo, horario, menusByDate, preparaciones })
       });
       if(resp.status === 401){
         appPassword = null;
@@ -1188,6 +1193,9 @@ function initApp(){
     await persistAll();
   }
   async function saveCiclo(){
+    await persistAll();
+  }
+  async function savePreparaciones(){
     await persistAll();
   }
 
@@ -1481,72 +1489,80 @@ function initApp(){
   }
 
   async function deleteRecipe(id){
-    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida, junto con su foto y preparación si tenía.')) return;
+    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida.')) return;
     recipes = recipes.filter(r=>r.id!==id);
     menus.forEach(m=>{ m.items = m.items.filter(it=>it.recipeId!==id); });
     await saveRecipes();
-    await borrarImagenReceta(id); // se borra sola, sin que haga falta acordarse
     renderRecipeList();
-    if($('#panel-preparaciones').classList.contains('active')) renderPreparaciones();
   }
 
   // ---------- PREPARACIONES ----------
+  $('#addPrepCardBtn').addEventListener('click', async ()=>{
+    preparaciones.push({ id: uid(), nombre: '', texto: '' });
+    await savePreparaciones();
+    renderPreparaciones();
+    // Enfocamos el campo de nombre de la tarjeta recién creada (la última)
+    const ultima = preparaciones[preparaciones.length - 1];
+    const input = $(`#prep-name-${ultima.id}`);
+    if(input){ input.scrollIntoView({behavior:'smooth', block:'center'}); input.focus(); }
+  });
+
   function renderPreparaciones(){
     const box = $('#prepList');
-    if(recipes.length === 0){
-      box.innerHTML = '<div class="empty">Todavía no cargaste ninguna receta.<br>Cargalas primero en la pestaña "Recetario".</div>';
+    if(preparaciones.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no armaste ninguna tarjeta.<br>Tocá "+ Nueva preparación" arriba ↑</div>';
       return;
     }
     box.innerHTML = '';
-    recipes.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(rec=>{
+    preparaciones.forEach(prep=>{
       const card = document.createElement('div');
       card.className = 'prep-card';
       card.innerHTML = `
         <div class="prep-image-col">
-          <div class="prep-image-frame" id="prep-frame-${rec.id}">
+          <div class="prep-image-frame" id="prep-frame-${prep.id}">
             <div class="prep-placeholder">Sin foto todavía</div>
           </div>
-          <input type="file" class="prep-image-input" accept="image/*" data-id="${rec.id}">
-          <div class="prep-image-status" id="prep-imgstatus-${rec.id}"></div>
+          <input type="file" class="prep-image-input" accept="image/*" data-id="${prep.id}">
+          <div class="prep-image-status" id="prep-imgstatus-${prep.id}"></div>
         </div>
         <div class="prep-text-col">
           <label style="margin-bottom:2px;">Nombre a mostrar</label>
-          <input type="text" class="prep-name-input" id="prep-name-${rec.id}" placeholder="Escribí algo moni" value="${escapeHtml(rec.prepNombre || '')}" style="margin-bottom:12px;">
+          <input type="text" class="prep-name-input" id="prep-name-${prep.id}" placeholder="Escribí algo moni" value="${escapeHtml(prep.nombre || '')}" style="margin-bottom:12px;">
           <div class="prep-label">PREPARACIÓN</div>
-          <textarea class="prep-textarea" id="prep-text-${rec.id}" placeholder="Método de cocción, tiempos, técnica, cómo se presenta el plato...">${escapeHtml(rec.preparacion || '')}</textarea>
+          <textarea class="prep-textarea" id="prep-text-${prep.id}" placeholder="Método de cocción, tiempos, técnica, cómo se presenta el plato...">${escapeHtml(prep.texto || '')}</textarea>
           <div class="prep-save-row">
-            <button class="btn btn-primary btn-small" data-act="save-prep" data-id="${rec.id}">Guardar preparación</button>
-            <button class="btn btn-danger btn-small" data-act="delete-prep" data-id="${rec.id}">Eliminar tarjeta</button>
-            <span class="prep-save-status" id="prep-savestatus-${rec.id}"></span>
+            <button class="btn btn-primary btn-small" data-act="save-prep" data-id="${prep.id}">Guardar preparación</button>
+            <button class="btn btn-danger btn-small" data-act="delete-prep" data-id="${prep.id}">Eliminar tarjeta</button>
+            <span class="prep-save-status" id="prep-savestatus-${prep.id}"></span>
           </div>
         </div>
       `;
       box.appendChild(card);
     });
 
-    // Botón "Guardar preparación" de cada tarjeta (guarda el texto, junto al resto de la receta)
+    // Botón "Guardar preparación" de cada tarjeta
     $$('[data-act="save-prep"]', box).forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const id = btn.dataset.id;
-        const rec = recipes.find(r=>r.id===id);
-        if(!rec) return;
-        rec.preparacion = $(`#prep-text-${id}`).value;
-        rec.prepNombre = $(`#prep-name-${id}`).value;
+        const prep = preparaciones.find(p=>p.id===id);
+        if(!prep) return;
+        prep.nombre = $(`#prep-name-${id}`).value;
+        prep.texto = $(`#prep-text-${id}`).value;
         const status = $(`#prep-savestatus-${id}`);
         status.textContent = 'Guardando...';
-        await saveRecipes();
+        await savePreparaciones();
         status.textContent = 'Guardado ✓';
         setTimeout(()=>{ status.textContent = ''; }, 2500);
       });
     });
 
-    // Botón "Eliminar tarjeta" (solo borra la foto y el texto de esta preparación --
-    // la receta en sí, con sus ingredientes, queda intacta en Recetario y en los menúes)
+    // Botón "Eliminar tarjeta" -- borra la tarjeta entera, incluida su foto en la base de datos.
+    // Esto es totalmente independiente de recetas, menúes y listas: no las toca para nada.
     $$('[data-act="delete-prep"]', box).forEach(btn=>{
       btn.addEventListener('click', ()=> eliminarTarjetaPreparacion(btn.dataset.id));
     });
 
-    // Subir foto: se comprime y se guarda aparte, sin tocar el resto de los datos
+    // Subir foto: se comprime y se guarda aparte, en la tabla de imágenes
     $$('.prep-image-input', box).forEach(input=>{
       input.addEventListener('change', async (e)=>{
         const id = input.dataset.id;
@@ -1572,28 +1588,24 @@ function initApp(){
     });
 
     // Cargamos las fotos que ya existan, una por una, sin frenar la pantalla
-    recipes.forEach(async (rec)=>{
-      const dataUrl = await traerImagenReceta(rec.id);
-      if(dataUrl) mostrarImagenEnTarjeta(rec.id, dataUrl);
+    preparaciones.forEach(async (prep)=>{
+      const dataUrl = await traerImagenReceta(prep.id);
+      if(dataUrl) mostrarImagenEnTarjeta(prep.id, dataUrl);
     });
   }
 
-  function mostrarImagenEnTarjeta(recetaId, dataUrl){
-    const frame = $(`#prep-frame-${recetaId}`);
+  function mostrarImagenEnTarjeta(prepId, dataUrl){
+    const frame = $(`#prep-frame-${prepId}`);
     if(!frame) return;
     frame.innerHTML = `<img src="${dataUrl}" alt="" title="Doble clic para ver en grande">`;
     frame.querySelector('img').addEventListener('dblclick', ()=> abrirImagenCompleta(dataUrl));
   }
 
   async function eliminarTarjetaPreparacion(id){
-    if(!confirm('¿Borrar la foto y el texto de preparación de este plato? La receta y sus ingredientes NO se van a tocar, siguen intactos en Recetario.')) return;
-    const rec = recipes.find(r=>r.id===id);
-    if(rec){
-      rec.preparacion = '';
-      rec.prepNombre = '';
-      await saveRecipes();
-    }
-    await borrarImagenReceta(id);
+    if(!confirm('¿Eliminar esta tarjeta de preparación? Se borra la foto, el nombre y el texto. No afecta ninguna receta, menú ni lista.')) return;
+    preparaciones = preparaciones.filter(p=>p.id!==id);
+    await savePreparaciones();
+    await borrarImagenReceta(id); // borra también la foto de la base de datos
     renderPreparaciones();
   }
 
