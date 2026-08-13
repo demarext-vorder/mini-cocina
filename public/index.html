@@ -482,8 +482,7 @@
   }
   .sheet-head .title{ font-family:var(--font); text-transform:none; font-size:16px; font-weight:600; }
   .sheet-head .date{ font-family:var(--font); font-size:13px; background:rgba(255,255,255,.22); padding:3px 10px; border-radius:20px; font-weight:500; }
-  .sheet-columns{ display:flex; gap:20px; align-items:flex-start; }
-  .sheet-col{ flex:1; min-width:0; }
+  .sheet-columns{ display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
   .sheet-group{ border-top:1px solid var(--border); }
   .sheet-group-title{
     font-family:var(--font);
@@ -640,19 +639,14 @@
     .sheet-head .title{ color:#111 !important; font-size:13px !important; }
     .sheet-head .date{ background:transparent !important; color:#111 !important; font-weight:700; font-size:12px !important; padding:0 !important; }
     .sheet-columns{
-      display:flex !important;
+      display:grid !important;
+      grid-template-columns:1fr 1fr !important;
       gap:0 !important;
-      align-items:flex-start;
+      align-items:start;
     }
-    .sheet-col{
-      flex:1 1 50%;
-      min-width:0;
-      border-left:1px solid #000;
-      border-right:1px solid #000;
-    }
-    .sheet-col + .sheet-col{ border-left:none; }
     .sheet-group{
       break-inside:avoid;
+      border:1px solid #000;
     }
     .sheet-group-title{ background:#fff !important; color:#000 !important; font-size:11px !important; padding:5px 10px !important; }
     .sheet-dish{ break-inside:avoid; padding:6px 12px 8px !important; }
@@ -1803,14 +1797,10 @@ function initApp(){
     }
 
     html += `<div class="sheet-columns">
-      <div class="sheet-col">
-        ${construirGrupoHtml('PACIENTE ALMUERZO')}
-        ${construirGrupoHtml('PACIENTE CENA')}
-      </div>
-      <div class="sheet-col">
-        ${construirGrupoHtml('PERSONAL ALMUERZO')}
-        ${construirGrupoHtml('PERSONAL CENA')}
-      </div>
+      ${construirGrupoHtml('PACIENTE ALMUERZO')}
+      ${construirGrupoHtml('PACIENTE CENA')}
+      ${construirGrupoHtml('PERSONAL ALMUERZO')}
+      ${construirGrupoHtml('PERSONAL CENA')}
     </div>`;
 
     html += `
