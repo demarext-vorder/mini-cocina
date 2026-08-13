@@ -443,6 +443,36 @@
   .modal-row .nombre{ font-size:13.5px; font-weight:500; flex:1; }
   .modal-row input{ width:80px; flex:none; text-align:center; }
 
+  .image-modal-card{
+    padding:0;
+    max-width:min(90vw, 640px);
+    background:transparent;
+    box-shadow:none;
+    position:relative;
+    overflow:visible;
+  }
+  .image-modal-card img{
+    display:block;
+    width:100%;
+    max-height:85vh;
+    object-fit:contain;
+    border-radius:12px;
+    background:#111;
+  }
+  .image-modal-close{
+    position:absolute;
+    top:-14px;
+    right:-14px;
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    background:var(--ink);
+    color:#fff;
+    border:2px solid var(--surface);
+    font-size:14px;
+    cursor:pointer;
+  }
+
   /* --- Print sheet preview --- */
   .sheet-day{ margin-bottom:10px; }
   .sheet-day:last-child{ margin-bottom:0; }
@@ -875,6 +905,14 @@
         <button class="btn btn-ghost" id="racionesModalCancel">Cancelar</button>
         <button class="btn btn-primary" id="racionesModalConfirm">Agregar al menú</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: foto en tamaño completo ================= -->
+  <div class="modal-overlay" id="imagePreviewOverlay">
+    <div class="modal-card image-modal-card">
+      <button type="button" class="image-modal-close" id="imagePreviewClose" title="Cerrar">✕</button>
+      <img id="imagePreviewImg" alt="Foto del plato">
     </div>
   </div>
 
@@ -1357,12 +1395,29 @@ function initApp(){
         if(dataUrl){
           img.src = dataUrl;
           img.style.display = '';
+          img.style.cursor = 'zoom-in';
+          img.title = 'Doble clic para ver en grande';
+          img.addEventListener('dblclick', ()=> abrirImagenCompleta(dataUrl));
         }
       });
     }catch(e){
       console.warn('No se pudieron cargar las miniaturas de las recetas', e);
     }
   }
+
+  // ---------- Ver foto en tamaño completo ----------
+  function abrirImagenCompleta(dataUrl){
+    $('#imagePreviewImg').src = dataUrl;
+    $('#imagePreviewOverlay').classList.add('open');
+  }
+  function cerrarImagenCompleta(){
+    $('#imagePreviewOverlay').classList.remove('open');
+    $('#imagePreviewImg').src = '';
+  }
+  $('#imagePreviewClose').addEventListener('click', cerrarImagenCompleta);
+  $('#imagePreviewOverlay').addEventListener('click', (e)=>{
+    if(e.target.id === 'imagePreviewOverlay') cerrarImagenCompleta();
+  });
 
   function editRecipe(id){
     const rec = recipes.find(r=>r.id===id);
