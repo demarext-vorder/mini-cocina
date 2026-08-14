@@ -650,6 +650,48 @@
 
   .no-entries{ padding:16px 22px; color:var(--ink-soft); font-size:13px; }
 
+  /* --- Menú mensual de personal (planilla tipo "Menú Agosto" en papel) --- */
+  .mp-sheet{
+    background:#fff;
+    color:#111;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+    font-family:Arial,Helvetica,sans-serif;
+  }
+  .mp-title{
+    text-align:center;
+    font-weight:800;
+    font-size:16px;
+    letter-spacing:.03em;
+    border-bottom:3px double #000;
+    padding-bottom:6px;
+    margin-bottom:8px;
+  }
+  table.mp-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:11px;
+  }
+  table.mp-table th, table.mp-table td{
+    border:1px solid #000;
+    padding:4px 8px;
+  }
+  table.mp-table thead th{
+    text-align:center;
+    font-weight:800;
+    text-transform:uppercase;
+    font-size:11px;
+    background:#fff;
+  }
+  table.mp-table td.mp-dia, table.mp-table td.mp-l{
+    width:26px;
+    text-align:center;
+    font-weight:700;
+  }
+  table.mp-table tbody tr:nth-child(even){ background:#EFEFEF; }
+  .mp-legend{ margin-top:8px; font-size:10px; color:#555; }
+
   .ciclo-row{
     display:flex;
     align-items:center;
@@ -763,6 +805,15 @@
     .ticket-group-bar{ break-after:avoid !important; break-inside:avoid !important; }
     .ticket-dish-title{ break-after:avoid !important; }
     .ticket-table tr{ break-inside:avoid !important; }
+    .mp-sheet{
+      border:none !important;
+      border-radius:0 !important;
+      padding:2cm 0 !important;
+      box-sizing:border-box !important;
+      -webkit-box-decoration-break:clone !important;
+      box-decoration-break:clone !important;
+    }
+    table.mp-table tr{ break-inside:avoid !important; }
     .sheet-day{
       margin:0 !important;
       padding: 2cm 0 !important;
@@ -970,6 +1021,15 @@
       </div>
       <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir planilla</button>
     </div>
+
+    <div class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+      <div class="field" style="max-width:200px;">
+        <label>Menú mensual de personal — mes</label>
+        <input type="month" id="printMesPersonal">
+      </div>
+      <button class="btn btn-stamp" id="doPrintMenuPersonalBtn">🖨 Imprimir menú de personal (mes)</button>
+    </div>
+
     <div id="printArea"></div>
   </section>
 
@@ -2132,6 +2192,77 @@ function initApp(){
   $('#printDate').addEventListener('change', renderPrintArea);
   $('#printRango').addEventListener('change', renderPrintArea);
   $('#doPrintBtn').addEventListener('click', ()=>{ renderPrintArea(); setTimeout(()=>window.print(), 60); });
+
+  $('#printMesPersonal').value = todayISO().slice(0,7);
+  $('#doPrintMenuPersonalBtn').addEventListener('click', ()=>{
+    renderMenuPersonalArea();
+    setTimeout(()=>window.print(), 60);
+  });
+
+  // Dada una fecha ISO, devuelve la posición (1-based) dentro del ciclo de listas, o '' si no aplica.
+  function posicionCicloParaFecha(fecha){
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0 || !ciclo.fechaInicio) return '';
+    const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+    const dFecha = new Date(fecha + 'T00:00:00');
+    const diffDias = Math.round((dFecha - dIni) / 86400000);
+    if(diffDias < 0) return '';
+    return String((diffDias % seq.length) + 1);
+  }
+
+  // Arma la planilla "MENU [MES]" con almuerzos y cenas de PERSONAL, día por día,
+  // según lo que resuelve el ciclo de listas para cada fecha del mes elegido.
+  function construirMenuPersonalMensual(anioMesStr){
+    const [anioStr, mesStr] = (anioMesStr || todayISO().slice(0,7)).split('-');
+    const anio = parseInt(anioStr, 10);
+    const mes = parseInt(mesStr, 10) - 1; // 0-indexado
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+    const NOMBRES_MES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+    let filas = '';
+    for(let dia=1; dia<=diasEnMes; dia++){
+      const fechaISO = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const lista = resolverListaParaFecha(fechaISO);
+
+      let textoAlmuerzo = '—', textoCena = '—';
+      if(lista){
+        const menusDeLista = lista.menuIds.map(id => menus.find(m => m.id === id)).filter(Boolean);
+        const menuAlm = menusDeLista.find(m => m.grupo === 'PERSONAL ALMUERZO');
+        const menuCena = menusDeLista.find(m => m.grupo === 'PERSONAL CENA');
+        if(menuAlm) textoAlmuerzo = escapeHtml(menuAlm.nombre.toUpperCase());
+        if(menuCena) textoCena = escapeHtml(menuCena.nombre.toUpperCase());
+      }
+
+      const lTxt = posicionCicloParaFecha(fechaISO);
+
+      filas += `<tr>
+        <td class="mp-dia">${dia}</td>
+        <td class="mp-alm">${textoAlmuerzo}</td>
+        <td class="mp-cena">${textoCena}</td>
+        <td class="mp-l">${lTxt}</td>
+      </tr>`;
+    }
+
+    return `<div class="mp-sheet">
+      <div class="mp-title">MENU ${NOMBRES_MES[mes]} ${anio}</div>
+      <table class="mp-table">
+        <thead>
+          <tr>
+            <th colspan="2">ALMUERZOS</th>
+            <th>CENAS</th>
+            <th>L</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="mp-legend">L = posición del día dentro del ciclo de listas.</div>
+    </div>`;
+  }
+
+  function renderMenuPersonalArea(){
+    const val = $('#printMesPersonal').value || todayISO().slice(0,7);
+    $('#printArea').innerHTML = construirMenuPersonalMensual(val);
+  }
 
   // Arma el HTML de la hoja de UN solo día (lo que antes era toda renderPrintArea).
   function construirHojaDelDia(fecha){
