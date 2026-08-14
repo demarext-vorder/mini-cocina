@@ -899,6 +899,58 @@
   }
 
   ::selection{ background:var(--accent-tint); color:var(--accent-dark); }
+
+  /* ============================================================
+     Efecto "Liquid Glass" (vidrio esmerilado / glassmorphism)
+     Fondo con manchas de color desenfocadas + paneles traslúcidos
+     con blur, borde de brillo y sombra suave, imitando vidrio.
+     ============================================================ */
+  body{
+    background:
+      radial-gradient(ellipse 700px 500px at 8% 8%,  rgba(26,115,232,.35), transparent 60%),
+      radial-gradient(ellipse 650px 550px at 96% 12%, rgba(0,191,165,.32), transparent 60%),
+      radial-gradient(ellipse 600px 520px at 12% 96%, rgba(123,97,255,.28), transparent 60%),
+      radial-gradient(ellipse 700px 600px at 100% 100%, rgba(26,115,232,.22), transparent 60%),
+      linear-gradient(160deg, #EEF2F7 0%, #E7ECF3 100%);
+    background-attachment: fixed;
+  }
+
+  header.top,
+  .card,
+  nav.tabs,
+  .modal-card,
+  .conn-status,
+  .prep-image-frame,
+  .day-toggle,
+  .almanaque .dia-celda{
+    background: rgba(255,255,255,.55) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid rgba(255,255,255,.65) !important;
+    box-shadow: 0 8px 32px rgba(31,38,135,.14), inset 0 1px 0 rgba(255,255,255,.7) !important;
+  }
+
+  nav.tabs{ background: rgba(255,255,255,.35) !important; }
+  nav.tabs button.active{
+    background: rgba(255,255,255,.85) !important;
+    box-shadow: 0 4px 14px rgba(31,38,135,.16), inset 0 1px 0 rgba(255,255,255,.9) !important;
+  }
+
+  .btn-stamp, .btn-ghost{
+    background: rgba(255,255,255,.55) !important;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.7) !important;
+  }
+
+  .btn-primary{
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark)) !important;
+    box-shadow: 0 6px 18px rgba(26,115,232,.35), inset 0 1px 0 rgba(255,255,255,.4) !important;
+  }
+
+  .almanaque .dia-lista{ background: rgba(232,240,254,.9) !important; }
+  .conn-status.is-ok{ background: rgba(232,240,254,.7) !important; }
+  .conn-status.is-error{ background: rgba(252,232,230,.7) !important; }
 </style>
 </head>
 <body>
