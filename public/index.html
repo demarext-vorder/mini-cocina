@@ -1006,28 +1006,30 @@
 
   <!-- ================= IMPRIMIR ================= -->
   <section class="panel" id="panel-imprimir">
-    <div class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-      <div class="field" style="flex:1; min-width:160px;">
-        <label>Fecha de referencia</label>
-        <input type="date" id="printDate">
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+        <div class="field" style="flex:1; min-width:160px;">
+          <label>Fecha de referencia</label>
+          <input type="date" id="printDate">
+        </div>
+        <div class="field" style="max-width:160px;">
+          <label>Rango a imprimir</label>
+          <select id="printRango">
+            <option value="dia">Un día</option>
+            <option value="semana">Una semana</option>
+            <option value="mes">Un mes</option>
+          </select>
+        </div>
+        <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir planilla</button>
       </div>
-      <div class="field" style="max-width:160px;">
-        <label>Rango a imprimir</label>
-        <select id="printRango">
-          <option value="dia">Un día</option>
-          <option value="semana">Una semana</option>
-          <option value="mes">Un mes</option>
-        </select>
-      </div>
-      <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir planilla</button>
-    </div>
 
-    <div class="card" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-      <div class="field" style="max-width:200px;">
-        <label>Menú mensual de personal — mes</label>
-        <input type="month" id="printMesPersonal">
+      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="field" style="max-width:200px;">
+          <label>Menú mensual de personal — mes</label>
+          <input type="month" id="printMesPersonal">
+        </div>
+        <button class="btn btn-stamp" id="doPrintMenuPersonalBtn">🖨 Imprimir menú de personal (mes)</button>
       </div>
-      <button class="btn btn-stamp" id="doPrintMenuPersonalBtn">🖨 Imprimir menú de personal (mes)</button>
     </div>
 
     <div id="printArea"></div>
