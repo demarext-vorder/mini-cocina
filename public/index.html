@@ -309,6 +309,22 @@
   .recipe-chip .info .ings{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
   .recipe-chip .actions{ display:flex; gap:6px; flex-shrink:0; }
 
+  /* --- Tarjeta de empleado (pestaña Personal): nombre y legajo son el dato principal --- */
+  #empleadoList .emp-primary{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  #empleadoList .info b{ font-size:16.5px; font-weight:700; }
+  #empleadoList .info .tag{
+    font-size:12.5px;
+    font-weight:700;
+    padding:3px 10px;
+    margin-left:0;
+  }
+  #empleadoList .info .ings{ font-size:11px; margin-top:6px; }
+
   /* --- Preparaciones: tarjeta imagen + método --- */
   .prep-card{
     display:flex;
@@ -883,58 +899,6 @@
   }
 
   ::selection{ background:var(--accent-tint); color:var(--accent-dark); }
-
-  /* ============================================================
-     PREVIEW — efecto "Liquid Glass" (vidrio esmerilado / glassmorphism)
-     Fondo con manchas de color desenfocadas + paneles traslúcidos
-     con blur, borde de brillo y sombra suave, imitando vidrio.
-     ============================================================ */
-  body{
-    background:
-      radial-gradient(ellipse 700px 500px at 8% 8%,  rgba(26,115,232,.35), transparent 60%),
-      radial-gradient(ellipse 650px 550px at 96% 12%, rgba(0,191,165,.32), transparent 60%),
-      radial-gradient(ellipse 600px 520px at 12% 96%, rgba(123,97,255,.28), transparent 60%),
-      radial-gradient(ellipse 700px 600px at 100% 100%, rgba(26,115,232,.22), transparent 60%),
-      linear-gradient(160deg, #EEF2F7 0%, #E7ECF3 100%);
-    background-attachment: fixed;
-  }
-
-  header.top,
-  .card,
-  nav.tabs,
-  .modal-card,
-  .conn-status,
-  .prep-image-frame,
-  .day-toggle,
-  .almanaque .dia-celda{
-    background: rgba(255,255,255,.55) !important;
-    -webkit-backdrop-filter: blur(18px) saturate(180%);
-    backdrop-filter: blur(18px) saturate(180%);
-    border: 1px solid rgba(255,255,255,.65) !important;
-    box-shadow: 0 8px 32px rgba(31,38,135,.14), inset 0 1px 0 rgba(255,255,255,.7) !important;
-  }
-
-  nav.tabs{ background: rgba(255,255,255,.35) !important; }
-  nav.tabs button.active{
-    background: rgba(255,255,255,.85) !important;
-    box-shadow: 0 4px 14px rgba(31,38,135,.16), inset 0 1px 0 rgba(255,255,255,.9) !important;
-  }
-
-  .btn-stamp, .btn-ghost{
-    background: rgba(255,255,255,.55) !important;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,.7) !important;
-  }
-
-  .btn-primary{
-    background: linear-gradient(135deg, var(--accent), var(--accent-dark)) !important;
-    box-shadow: 0 6px 18px rgba(26,115,232,.35), inset 0 1px 0 rgba(255,255,255,.4) !important;
-  }
-
-  .almanaque .dia-lista{ background: rgba(232,240,254,.9) !important; }
-  .conn-status.is-ok{ background: rgba(232,240,254,.7) !important; }
-  .conn-status.is-error{ background: rgba(252,232,230,.7) !important; }
 </style>
 </head>
 <body>
@@ -963,6 +927,7 @@
     <button class="tab-btn" data-tab="menues">Menúes</button>
     <button class="tab-btn" data-tab="listas">Listas</button>
     <button class="tab-btn" data-tab="imprimir">Imprimir</button>
+    <button class="tab-btn" data-tab="personal">Personal</button>
   </nav>
 
   <!-- ================= RECETARIO ================= -->
@@ -1152,6 +1117,53 @@
     <div id="printArea"></div>
   </section>
 
+  <!-- ================= PERSONAL ================= -->
+  <section class="panel" id="panel-personal">
+    <div style="margin-bottom:14px;">
+      <button class="btn btn-primary" id="toggleEmpFormBtn">+ Agregar empleado</button>
+    </div>
+
+    <div class="card" id="empFormCard" style="display:none;">
+      <h2><span class="n">+</span> Nuevo empleado</h2>
+      <div class="row" style="flex-wrap:wrap;">
+        <div class="field" style="max-width:140px; min-width:110px;">
+          <label>N° de legajo</label>
+          <input type="text" id="empLegajo" placeholder="Ej: 1024">
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label>Nombre</label>
+          <input type="text" id="empNombre" placeholder="Ej: Juan">
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label>Apellido</label>
+          <input type="text" id="empApellido" placeholder="Ej: Pérez">
+        </div>
+      </div>
+      <div class="row" style="flex-wrap:wrap;">
+        <div class="field" style="min-width:160px;">
+          <label>Teléfono</label>
+          <input type="text" id="empTelefono" placeholder="Ej: 11 2345-6789">
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label>Puesto</label>
+          <input type="text" id="empPuesto" placeholder="Ej: Cocinero/a">
+        </div>
+        <div class="field" style="max-width:170px; min-width:150px;">
+          <label>Fecha de ingreso</label>
+          <input type="date" id="empFechaIngreso">
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-primary" id="saveEmpleadoBtn">Guardar empleado</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n" id="empleadoCount">0</span> Empleados</h2>
+      <div id="empleadoList" class="recipe-list"></div>
+    </div>
+  </section>
+
   <!-- ================= MODAL: raciones por receta ================= -->
   <div class="modal-overlay" id="racionesModalOverlay">
     <div class="modal-card">
@@ -1189,6 +1201,7 @@ function initApp(){
   let horario = {};      // sistema viejo (día de semana -> lista), ya no se usa, se conserva por compatibilidad
   let menusByDate = {};  // ya no se usa para armar la planilla, se deja solo por compatibilidad
   let preparaciones = []; // [{id, nombre, texto}] -- totalmente independiente de recipes/menus/listas
+  let empleados = []; // [{id, legajo, nombre, apellido, telefono, puesto, fechaIngreso}] -- los días de vacaciones se calculan al vuelo, no se guardan
   let currentIngRows = [];
   let currentMenuItems = [];   // para el formulario de "Nuevo menú"
   let currentListaMenuIds = []; // para el formulario de "Nueva lista"
@@ -1267,10 +1280,11 @@ function initApp(){
       horario = (data.horario && typeof data.horario === 'object') ? data.horario : {};
       menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
       preparaciones = Array.isArray(data.preparaciones) ? data.preparaciones : [];
+      empleados = Array.isArray(data.empleados) ? data.empleados : [];
       setConnStatus('ok', 'Conectado', 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.');
     }catch(e){
       console.error('No se pudo conectar con el servidor', e);
-      recipes = []; menus = []; listas = []; ciclo = { fechaInicio: '', secuenciaListaIds: [] }; horario = {}; menusByDate = {}; preparaciones = [];
+      recipes = []; menus = []; listas = []; ciclo = { fechaInicio: '', secuenciaListaIds: [] }; horario = {}; menusByDate = {}; preparaciones = []; empleados = [];
       setConnStatus('error', 'Sin conexión', 'Sin conexión con el servidor. Revisá tu internet y recargá la página.');
     }
   }
@@ -1285,7 +1299,7 @@ function initApp(){
           'Content-Type': 'application/json',
           'X-App-Password': appPassword || ''
         },
-        body: JSON.stringify({ recipes, menus, listas, ciclo, horario, menusByDate, preparaciones })
+        body: JSON.stringify({ recipes, menus, listas, ciclo, horario, menusByDate, preparaciones, empleados })
       });
       if(resp.status === 401){
         appPassword = null;
@@ -1388,6 +1402,9 @@ function initApp(){
   async function savePreparaciones(){
     await persistAll();
   }
+  async function saveEmpleados(){
+    await persistAll();
+  }
 
   // ---------- Tabs ----------
   $$('.tab-btn').forEach(btn=>{
@@ -1399,6 +1416,7 @@ function initApp(){
       if(btn.dataset.tab === 'preparaciones') renderPreparaciones();
       if(btn.dataset.tab === 'menues') renderMenuList();
       if(btn.dataset.tab === 'listas'){ renderListaList(); cargarFormularioCiclo(); }
+      if(btn.dataset.tab === 'personal') renderEmpleadoList();
       if(btn.dataset.tab === 'imprimir') renderPrintArea();
     });
   });
@@ -2315,6 +2333,175 @@ function initApp(){
     poblarSelectCiclo();
     $('#cicloFechaInicio').value = ciclo.fechaInicio || '';
     renderCicloSecuencia();
+  }
+
+  // ---------- PERSONAL ----------
+  // Calcula los días de vacaciones según la antigüedad, a partir de la fecha de ingreso.
+  // Tramos (Ley de Contrato de Trabajo, art. 150/153):
+  //   menos de 6 meses: 1 día por cada 20 días efectivamente trabajados (proporcional)
+  //   de 6 meses hasta 5 años inclusive: 14 días
+  //   más de 5 y hasta 10 años inclusive: 21 días
+  //   más de 10 y hasta 20 años inclusive: 28 días
+  //   más de 20 años: 35 días
+  // Se recalcula siempre contra la fecha de HOY, así que se va actualizando solo con el tiempo.
+  function calcularVacaciones(fechaIngresoISO, fechaRefISO){
+    if(!fechaIngresoISO) return null;
+    const ini = new Date(fechaIngresoISO + 'T00:00:00');
+    const ref = new Date((fechaRefISO || todayISO()) + 'T00:00:00');
+    if(isNaN(ini.getTime()) || ref < ini) return null;
+
+    const diasTrabajados = Math.floor((ref - ini) / 86400000);
+
+    // Antigüedad en meses completos (para ubicar el tramo correspondiente).
+    let anios = ref.getFullYear() - ini.getFullYear();
+    let meses = ref.getMonth() - ini.getMonth();
+    if(ref.getDate() < ini.getDate()) meses--;
+    if(meses < 0){ anios--; meses += 12; }
+    const mesesCompletos = anios * 12 + meses;
+
+    let dias, tramo;
+    if(mesesCompletos < 6){
+      dias = Math.floor(diasTrabajados / 20);
+      tramo = 'menos de 6 meses · proporcional';
+    } else if(mesesCompletos <= 60){
+      dias = 14;
+      tramo = '6 meses a 5 años';
+    } else if(mesesCompletos <= 120){
+      dias = 21;
+      tramo = '5 a 10 años';
+    } else if(mesesCompletos <= 240){
+      dias = 28;
+      tramo = '10 a 20 años';
+    } else {
+      dias = 35;
+      tramo = 'más de 20 años';
+    }
+    return { dias, tramo, mesesCompletos, diasTrabajados };
+  }
+
+  // Texto tipo "3 años y 4 meses" a partir de la fecha de ingreso.
+  function fmtAntiguedad(fechaIngresoISO){
+    const v = calcularVacaciones(fechaIngresoISO);
+    if(!v) return '—';
+    const anios = Math.floor(v.mesesCompletos / 12);
+    const mesesResto = v.mesesCompletos % 12;
+    const partes = [];
+    if(anios > 0) partes.push(`${anios} año${anios !== 1 ? 's' : ''}`);
+    if(mesesResto > 0 || anios === 0) partes.push(`${mesesResto} mes${mesesResto !== 1 ? 'es' : ''}`);
+    return partes.join(' y ');
+  }
+
+  function resetEmpleadoForm(){
+    $('#empLegajo').value = '';
+    $('#empNombre').value = '';
+    $('#empApellido').value = '';
+    $('#empTelefono').value = '';
+    $('#empPuesto').value = '';
+    $('#empFechaIngreso').value = '';
+    delete $('#saveEmpleadoBtn').dataset.editing;
+    $('#saveEmpleadoBtn').textContent = 'Guardar empleado';
+  }
+
+  // El formulario de carga queda oculto hasta que se toca "+ Agregar empleado";
+  // ese mismo botón funciona como toggle para mostrarlo/ocultarlo.
+  const empFormCard = $('#empFormCard');
+  const toggleEmpFormBtn = $('#toggleEmpFormBtn');
+
+  function mostrarFormEmpleado(){
+    empFormCard.style.display = 'block';
+    toggleEmpFormBtn.textContent = '− Cerrar formulario';
+  }
+  function ocultarFormEmpleado(){
+    empFormCard.style.display = 'none';
+    toggleEmpFormBtn.textContent = '+ Agregar empleado';
+    resetEmpleadoForm();
+  }
+  toggleEmpFormBtn.addEventListener('click', ()=>{
+    if(empFormCard.style.display === 'none'){
+      mostrarFormEmpleado();
+    } else {
+      ocultarFormEmpleado();
+    }
+  });
+
+  $('#saveEmpleadoBtn').addEventListener('click', async ()=>{
+    const legajo = $('#empLegajo').value.trim();
+    const nombre = $('#empNombre').value.trim();
+    const apellido = $('#empApellido').value.trim();
+    const telefono = $('#empTelefono').value.trim();
+    const puesto = $('#empPuesto').value.trim();
+    const fechaIngreso = $('#empFechaIngreso').value;
+    if(!nombre || !apellido){ alert('Poné al menos el nombre y el apellido del empleado.'); return; }
+
+    const editingId = $('#saveEmpleadoBtn').dataset.editing;
+    if(editingId){
+      const idx = empleados.findIndex(e=>e.id===editingId);
+      if(idx>=0) empleados[idx] = {...empleados[idx], legajo, nombre, apellido, telefono, puesto, fechaIngreso};
+    } else {
+      empleados.push({id:uid(), legajo, nombre, apellido, telefono, puesto, fechaIngreso});
+    }
+    await saveEmpleados();
+    ocultarFormEmpleado();
+    renderEmpleadoList();
+  });
+
+  function renderEmpleadoList(){
+    const box = $('#empleadoList');
+    $('#empleadoCount').textContent = empleados.length;
+    if(empleados.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no cargaste ningún empleado.<br>Sumá el primero arriba ↑</div>';
+      return;
+    }
+    box.innerHTML = '';
+    empleados.slice()
+      .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||'') || (a.nombre||'').localeCompare(b.nombre||''))
+      .forEach(emp=>{
+        const div = document.createElement('div');
+        div.className = 'recipe-chip';
+        div.id = `emp-chip-${emp.id}`;
+        const vac = calcularVacaciones(emp.fechaIngreso);
+        const vacTxt = vac ? `${vac.dias} día${vac.dias !== 1 ? 's' : ''} (${vac.tramo})` : 'sin fecha de ingreso cargada';
+        const antTxt = fmtAntiguedad(emp.fechaIngreso);
+        const ingresoTxt = emp.fechaIngreso ? `${fmtDateHuman(emp.fechaIngreso)} · antigüedad: ${antTxt}` : 'sin fecha de ingreso';
+        div.innerHTML = `
+          <div class="info">
+            <div class="emp-primary">
+              <b>${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</b><span class="tag">LEGAJO ${escapeHtml(emp.legajo || '—')}</span>
+            </div>
+            <div class="ings">${escapeHtml(emp.puesto || 'Sin puesto')} · Tel: ${escapeHtml(emp.telefono || '—')}</div>
+            <div class="ings">Ingreso: ${ingresoTxt} · Vacaciones: ${vacTxt}</div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-small btn-ghost" data-act="edit" data-id="${emp.id}">Editar</button>
+            <button class="btn btn-small btn-danger" data-act="del" data-id="${emp.id}">Borrar</button>
+          </div>
+        `;
+        box.appendChild(div);
+      });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editEmpleado(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteEmpleado(b.dataset.id)));
+  }
+
+  function editEmpleado(id){
+    const emp = empleados.find(e=>e.id===id);
+    if(!emp) return;
+    mostrarFormEmpleado();
+    $('#empLegajo').value = emp.legajo || '';
+    $('#empNombre').value = emp.nombre || '';
+    $('#empApellido').value = emp.apellido || '';
+    $('#empTelefono').value = emp.telefono || '';
+    $('#empPuesto').value = emp.puesto || '';
+    $('#empFechaIngreso').value = emp.fechaIngreso || '';
+    $('#saveEmpleadoBtn').dataset.editing = id;
+    $('#saveEmpleadoBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  async function deleteEmpleado(id){
+    if(!confirm('¿Borrar este empleado de la lista?')) return;
+    empleados = empleados.filter(e=>e.id!==id);
+    await saveEmpleados();
+    renderEmpleadoList();
   }
 
   // ---------- Imprimir ----------
