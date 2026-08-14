@@ -557,6 +557,22 @@
     padding:6px;
   }
   .ms-panel.open{ display:block; }
+  /* Las tarjetas ".card" usan backdrop-filter (efecto vidrio), y eso hace que cada
+     una arme su propia "capa" para dibujarse en pantalla. Sin esto, un desplegable
+     como "Elegir recetas..." quedaba tapado por la tarjeta de abajo (ej: "Menúes
+     guardados"), aunque su z-index fuera más alto -- porque ese z-index solo cuenta
+     DENTRO de la tarjeta que lo contiene. Acá forzamos que la tarjeta que tiene un
+     desplegable abierto se dibuje por encima de las demás. */
+  .card:has(.ms-panel.open){ position:relative; z-index:50; }
+  /* Ventana de "Elegir recetas..." en Menúes: más alta y en dos columnas, para ver
+     más recetas de una sola vez sin tener que desplazarse hacia abajo. */
+  #menuItemRecipePanel{ max-height:min(70vh, 480px); }
+  #menuItemRecipePanel.open{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+    gap:2px 14px;
+    align-content:start;
+  }
   .ms-option{
     display:flex;
     align-items:center;
