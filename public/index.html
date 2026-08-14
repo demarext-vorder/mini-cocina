@@ -95,34 +95,47 @@
     font-weight:400;
   }
 
-  .backup-bar{
+  /* --- Estado de conexión con el servidor: icono + texto mínimo, dentro del header --- */
+  .conn-status{
     display:flex;
     align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    flex-wrap:wrap;
-    background:var(--surface);
+    gap:7px;
+    flex-shrink:0;
+    padding:6px 12px;
     border:1px solid var(--border);
-    border-radius:14px;
-    padding:12px 16px;
-    margin-bottom:14px;
-    box-shadow:var(--elev-1);
-  }
-  .backup-text b{
-    display:block;
+    border-radius:20px;
+    background:var(--paper);
     font-family:var(--font);
-    text-transform:none;
-    font-weight:500;
-    font-size:13.5px;
-    letter-spacing:0;
-    color:var(--ink);
-  }
-  .backup-text span{
     font-size:12px;
+    font-weight:600;
     color:var(--ink-soft);
-    font-weight:400;
+    cursor:default;
   }
-  .backup-actions{ display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+  .conn-spinner{
+    display:none;
+    width:12px;
+    height:12px;
+    border:2px solid var(--accent-tint);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    flex-shrink:0;
+    animation: connSpin .7s linear infinite;
+  }
+  @keyframes connSpin{ to{ transform:rotate(360deg); } }
+  .conn-dot{
+    display:inline-block;
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    background:var(--ink-soft);
+    flex-shrink:0;
+  }
+  .conn-status.is-loading .conn-spinner{ display:inline-block; }
+  .conn-status.is-loading .conn-dot{ display:none; }
+  .conn-status.is-ok{ color:var(--accent-dark); border-color:var(--accent-tint); background:var(--accent-tint); }
+  .conn-status.is-ok .conn-dot{ background:#1E8E3E; }
+  .conn-status.is-error{ color:var(--danger); border-color:var(--danger-tint); background:var(--danger-tint); }
+  .conn-status.is-error .conn-dot{ background:var(--danger); }
 
   nav.tabs{
     display:flex;
@@ -197,7 +210,7 @@
     color:var(--ink-soft);
     margin-bottom:5px;
   }
-  input[type=text], input[type=number], input[type=date], select{
+  input[type=text], input[type=number], input[type=date], input[type=month], select{
     width:100%;
     padding:10px 12px;
     border:1px solid var(--border);
@@ -209,6 +222,8 @@
     box-shadow:none;
   }
   input:focus, select:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-tint); }
+  /* El navegador muestra el mes en minúscula (ej: "agosto 2026"); lo forzamos con mayúscula inicial. */
+  input[type=month]{ text-transform:capitalize; }
   .field{ margin-bottom:12px; }
   .row{ display:flex; gap:8px; }
   .row > .field{ flex:1; min-width:0; }
@@ -692,6 +707,44 @@
   table.mp-table tbody tr:nth-child(even){ background:#EFEFEF; }
   .mp-legend{ margin-top:8px; font-size:10px; color:#555; }
 
+  /* --- Bloque de opciones de impresión: dos columnas lado a lado --- */
+  .print-opciones{
+    display:flex;
+    align-items:stretch;
+  }
+  .print-opciones-col{
+    flex:1;
+    min-width:220px;
+    padding:14px 18px;
+    border-radius:12px;
+    display:flex;
+    flex-direction:column;
+  }
+  .print-opciones-divider{
+    width:2px;
+    background:var(--border-strong);
+    margin:0 4px;
+    align-self:stretch;
+    border-radius:1px;
+  }
+  .print-opciones-title{
+    font-family:var(--font);
+    font-weight:700;
+    font-size:13.5px;
+    color:var(--ink);
+    border-bottom:2px solid var(--accent);
+    padding-bottom:6px;
+    margin-bottom:14px;
+    width:fit-content;
+  }
+  .print-opciones-fields{ display:flex; gap:10px; flex-wrap:wrap; }
+  .print-opciones-btn-row{ margin-top:14px; text-align:center; }
+  @media (max-width: 640px){
+    .print-opciones{ flex-direction:column; }
+    .print-opciones-divider{ width:auto; height:2px; margin:6px 0 18px; }
+    .print-opciones-col{ padding:10px 16px; }
+  }
+
   .ciclo-row{
     display:flex;
     align-items:center;
@@ -785,7 +838,7 @@
   /* Print styles: dos columnas, limpio y sobrio para ahorrar tinta */
   @media print{
     body{ background:#fff !important; font-size:11px; }
-    header.top, .backup-bar, nav.tabs{ display:none !important; }
+    header.top, nav.tabs{ display:none !important; }
     section.panel{ display:none !important; }
     section.panel#panel-imprimir{ display:block !important; }
     #panel-imprimir > .card{ display:none !important; }
@@ -845,14 +898,12 @@
         <div class="subtitle">Recetario y hoja de cocina — Almuerzo / Cena · Pacientes / Personal</div>
       </div>
     </div>
-  </header>
-
-  <div class="backup-bar">
-    <div class="backup-text">
-      <b>Conexión con el servidor</b>
-      <span id="connectionStatus">Conectando...</span>
+    <div class="conn-status is-loading" id="connStatusBox" title="Conectando con el servidor...">
+      <span class="conn-spinner"></span>
+      <span class="conn-dot"></span>
+      <span id="connLabel">Conectando</span>
     </div>
-  </div>
+  </header>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="recetario">Recetario</button>
@@ -1007,28 +1058,42 @@
   <!-- ================= IMPRIMIR ================= -->
   <section class="panel" id="panel-imprimir">
     <div class="card">
-      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-        <div class="field" style="flex:1; min-width:160px;">
-          <label>Fecha de referencia</label>
-          <input type="date" id="printDate">
+      <div class="print-opciones">
+        <div class="print-opciones-col">
+          <div class="print-opciones-title">Planilla de Producción</div>
+          <div class="print-opciones-fields">
+            <div class="field" style="flex:1; min-width:140px;">
+              <label>Fecha de referencia</label>
+              <input type="date" id="printDate">
+            </div>
+            <div class="field" style="max-width:150px;">
+              <label>Rango a imprimir</label>
+              <select id="printRango">
+                <option value="dia">Un día</option>
+                <option value="semana">Una semana</option>
+                <option value="mes">Un mes</option>
+              </select>
+            </div>
+          </div>
+          <div class="print-opciones-btn-row">
+            <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir</button>
+          </div>
         </div>
-        <div class="field" style="max-width:160px;">
-          <label>Rango a imprimir</label>
-          <select id="printRango">
-            <option value="dia">Un día</option>
-            <option value="semana">Una semana</option>
-            <option value="mes">Un mes</option>
-          </select>
-        </div>
-        <button class="btn btn-stamp" id="doPrintBtn">🖨 Imprimir planilla</button>
-      </div>
 
-      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
-        <div class="field" style="max-width:200px;">
-          <label>Menú mensual de personal — mes</label>
-          <input type="month" id="printMesPersonal">
+        <div class="print-opciones-divider"></div>
+
+        <div class="print-opciones-col">
+          <div class="print-opciones-title">Menú de Personal</div>
+          <div class="print-opciones-fields">
+            <div class="field" style="flex:1; min-width:140px;">
+              <label>Mes a imprimir</label>
+              <input type="month" id="printMesPersonal">
+            </div>
+          </div>
+          <div class="print-opciones-btn-row">
+            <button class="btn btn-stamp" id="doPrintMenuPersonalBtn">🖨 Imprimir</button>
+          </div>
         </div>
-        <button class="btn btn-stamp" id="doPrintMenuPersonalBtn">🖨 Imprimir menú de personal (mes)</button>
       </div>
     </div>
 
@@ -1118,8 +1183,18 @@ function initApp(){
 
   // ---------- Conexión con el servidor (backend real en la nube) ----------
   const API_URL = 'https://mini-cocina.onrender.com';
-  const connStatus = document.getElementById('connectionStatus');
+  const connStatusBox = document.getElementById('connStatusBox');
+  const connLabel = document.getElementById('connLabel');
   let appPassword = null; // vive solo en memoria; se pide de nuevo si recargás la página
+
+  // Actualiza el indicador de conexión: ícono (spinner mientras carga, punto de color en reposo)
+  // + un texto bien corto. El mensaje completo queda como tooltip (title) por si hace falta más detalle.
+  function setConnStatus(estado, corto, completo){
+    connStatusBox.classList.remove('is-loading', 'is-ok', 'is-error');
+    connStatusBox.classList.add('is-' + estado);
+    connLabel.textContent = corto;
+    connStatusBox.title = completo || corto;
+  }
 
   function pedirContrasena(mensaje){
     const intento = prompt(mensaje || 'Ingresá la contraseña de cocina para poder guardar cambios:');
@@ -1128,7 +1203,7 @@ function initApp(){
   }
 
   async function loadAll(){
-    connStatus.textContent = 'Conectando con el servidor... (puede tardar unos segundos si estuvo inactivo)';
+    setConnStatus('loading', 'Conectando', 'Conectando con el servidor... (puede tardar unos segundos si estuvo inactivo)');
     try{
       const resp = await fetch(`${API_URL}/datos`);
       if(!resp.ok) throw new Error('Respuesta no válida del servidor');
@@ -1140,16 +1215,17 @@ function initApp(){
       horario = (data.horario && typeof data.horario === 'object') ? data.horario : {};
       menusByDate = (data.menusByDate && typeof data.menusByDate === 'object') ? data.menusByDate : {};
       preparaciones = Array.isArray(data.preparaciones) ? data.preparaciones : [];
-      connStatus.textContent = 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.';
+      setConnStatus('ok', 'Conectado', 'Conectado — podés ver todo. Al guardar te va a pedir la contraseña de cocina.');
     }catch(e){
       console.error('No se pudo conectar con el servidor', e);
       recipes = []; menus = []; listas = []; ciclo = { fechaInicio: '', secuenciaListaIds: [] }; horario = {}; menusByDate = {}; preparaciones = [];
-      connStatus.textContent = 'Sin conexión con el servidor. Revisá tu internet y recargá la página.';
+      setConnStatus('error', 'Sin conexión', 'Sin conexión con el servidor. Revisá tu internet y recargá la página.');
     }
   }
 
   async function persistAll(){
     if(appPassword === null) pedirContrasena();
+    setConnStatus('loading', 'Guardando', 'Guardando cambios en el servidor...');
     try{
       const resp = await fetch(`${API_URL}/datos`, {
         method: 'PUT',
@@ -1161,16 +1237,16 @@ function initApp(){
       });
       if(resp.status === 401){
         appPassword = null;
-        connStatus.textContent = 'Contraseña incorrecta. Tocá "Guardar" de nuevo para reintentar.';
+        setConnStatus('error', 'Contraseña incorrecta', 'Contraseña incorrecta. Tocá "Guardar" de nuevo para reintentar.');
         alert('Contraseña incorrecta. El cambio no se guardó -- volvé a intentar.');
         return;
       }
       if(!resp.ok) throw new Error('Respuesta no válida del servidor al guardar');
       const now = new Date();
-      connStatus.textContent = `Guardado en el servidor — último guardado ${now.toLocaleTimeString()}.`;
+      setConnStatus('ok', 'Guardado', `Guardado en el servidor — último guardado ${now.toLocaleTimeString()}.`);
     }catch(e){
       console.error('No se pudo guardar en el servidor', e);
-      connStatus.textContent = 'No se pudo guardar en el servidor. Revisá tu internet e intentá de nuevo.';
+      setConnStatus('error', 'Error al guardar', 'No se pudo guardar en el servidor. Revisá tu internet e intentá de nuevo.');
       alert('No se pudo guardar en el servidor. Los cambios quedan solo en esta pantalla hasta que se reestablezca la conexión.');
     }
   }
