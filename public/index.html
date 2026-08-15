@@ -991,10 +991,8 @@
     .francos-print-sheet{
       border:none !important;
       border-radius:0 !important;
-      padding:2cm 0 !important;
+      padding:1cm !important;
       box-sizing:border-box !important;
-      -webkit-box-decoration-break:clone !important;
-      box-decoration-break:clone !important;
     }
     table.francos-print-table tr{ break-inside:avoid !important; }
     .sheet-day{
@@ -2889,7 +2887,29 @@ function initApp(){
     const mesKey = $('#francosMes').value || todayISO().slice(0,7);
     const filtroPuesto = $('#francosPuestoFiltro').value;
     $('#printArea').innerHTML = construirFrancosPrintSheet(mesKey, filtroPuesto);
-    setTimeout(()=>window.print(), 60);
+
+    // La hoja de Francos se imprime horizontal (apaisada) porque tiene hasta 31
+    // columnas de días -- entra mucho mejor apaisada. Esto se hace con una regla
+    // @page temporal, que se agrega justo antes de imprimir y se saca apenas
+    // termina, para no afectar a la Planilla de Producción ni al Menú de
+    // Personal (esas siguen imprimiéndose en vertical, como siempre).
+    const estiloHorizontal = document.createElement('style');
+    estiloHorizontal.textContent = '@page{ size: landscape; }';
+    document.head.appendChild(estiloHorizontal);
+    let yaSaco = false;
+    const sacarEstiloHorizontal = () => {
+      if(yaSaco) return;
+      yaSaco = true;
+      estiloHorizontal.remove();
+    };
+    window.addEventListener('afterprint', sacarEstiloHorizontal, { once: true });
+
+    setTimeout(()=>{
+      window.print();
+      // Por si el navegador no llega a disparar "afterprint" (pasa en algunos
+      // flujos de "Guardar como PDF" en el celular), la sacamos igual a los pocos segundos.
+      setTimeout(sacarEstiloHorizontal, 4000);
+    }, 60);
   });
 
   // ---------- Imprimir ----------
