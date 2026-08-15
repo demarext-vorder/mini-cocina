@@ -1306,10 +1306,6 @@
       </div>
       <div class="row" style="flex-wrap:wrap;">
         <div class="field" style="min-width:160px;">
-          <label>Teléfono</label>
-          <input type="text" id="empTelefono" placeholder="Ej: 11 2345-6789">
-        </div>
-        <div class="field" style="min-width:160px;">
           <label>Puesto</label>
           <select id="empPuesto">
             <option value="DESPENSA">DESPENSA</option>
@@ -1406,7 +1402,7 @@ function initApp(){
   let horario = {};      // sistema viejo (día de semana -> lista), ya no se usa, se conserva por compatibilidad
   let menusByDate = {};  // ya no se usa para armar la planilla, se deja solo por compatibilidad
   let preparaciones = []; // [{id, nombre, texto}] -- totalmente independiente de recipes/menus/listas
-  let empleados = []; // [{id, legajo, nombre, apellido, telefono, puesto, fechaIngreso, turno}] -- los días de vacaciones se calculan al vuelo, no se guardan
+  let empleados = []; // [{id, legajo, nombre, apellido, puesto, fechaIngreso, turno}] -- los días de vacaciones se calculan al vuelo, no se guardan
   let francos = {}; // { 'YYYY-MM': { empleadoId: [dia1, dia2, ...] } } -- francos marcados por mes
   let currentIngRows = [];
   let currentMenuItems = [];   // para el formulario de "Nuevo menú"
@@ -2608,7 +2604,6 @@ function initApp(){
     $('#empLegajo').value = '';
     $('#empNombre').value = '';
     $('#empApellido').value = '';
-    $('#empTelefono').value = '';
     $('#empPuesto').value = 'DESPENSA';
     $('#empFechaIngreso').value = '';
     $('#empTurno').value = 'Turno mañana';
@@ -2642,7 +2637,6 @@ function initApp(){
     const legajo = $('#empLegajo').value.trim();
     const nombre = $('#empNombre').value.trim();
     const apellido = $('#empApellido').value.trim();
-    const telefono = $('#empTelefono').value.trim();
     const puesto = $('#empPuesto').value.trim();
     const fechaIngreso = $('#empFechaIngreso').value;
     const turno = $('#empTurno').value;
@@ -2651,9 +2645,9 @@ function initApp(){
     const editingId = $('#saveEmpleadoBtn').dataset.editing;
     if(editingId){
       const idx = empleados.findIndex(e=>e.id===editingId);
-      if(idx>=0) empleados[idx] = {...empleados[idx], legajo, nombre, apellido, telefono, puesto, fechaIngreso, turno};
+      if(idx>=0) empleados[idx] = {...empleados[idx], legajo, nombre, apellido, puesto, fechaIngreso, turno};
     } else {
-      empleados.push({id:uid(), legajo, nombre, apellido, telefono, puesto, fechaIngreso, turno});
+      empleados.push({id:uid(), legajo, nombre, apellido, puesto, fechaIngreso, turno});
     }
     await saveEmpleados();
     ocultarFormEmpleado();
@@ -2683,7 +2677,7 @@ function initApp(){
             <div class="emp-primary">
               <b>${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</b><span class="tag">LEGAJO ${escapeHtml(emp.legajo || '—')}</span>
             </div>
-            <div class="ings">${escapeHtml(emp.puesto || 'Sin puesto')} · Tel: ${escapeHtml(emp.telefono || '—')} · ${escapeHtml(emp.turno || 'Turno mañana')}</div>
+            <div class="ings">${escapeHtml(emp.puesto || 'Sin puesto')} · ${escapeHtml(emp.turno || 'Turno mañana')}</div>
             <div class="ings">Ingreso: ${ingresoTxt} · Vacaciones: ${vacTxt}</div>
           </div>
           <div class="actions">
@@ -2704,7 +2698,6 @@ function initApp(){
     $('#empLegajo').value = emp.legajo || '';
     $('#empNombre').value = emp.nombre || '';
     $('#empApellido').value = emp.apellido || '';
-    $('#empTelefono').value = emp.telefono || '';
     $('#empPuesto').value = emp.puesto || 'DESPENSA';
     $('#empFechaIngreso').value = emp.fechaIngreso || '';
     $('#empTurno').value = emp.turno || 'Turno mañana';
