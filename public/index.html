@@ -1291,10 +1291,6 @@
     <div class="card" id="empFormCard" style="display:none;">
       <h2><span class="n">+</span> Nuevo empleado</h2>
       <div class="row" style="flex-wrap:wrap;">
-        <div class="field" style="max-width:140px; min-width:110px;">
-          <label>N° de legajo</label>
-          <input type="text" id="empLegajo" placeholder="Ej: 1024">
-        </div>
         <div class="field" style="min-width:160px;">
           <label>Nombre</label>
           <input type="text" id="empNombre" placeholder="Ej: Juan">
@@ -1302,6 +1298,10 @@
         <div class="field" style="min-width:160px;">
           <label>Apellido</label>
           <input type="text" id="empApellido" placeholder="Ej: Pérez">
+        </div>
+        <div class="field" style="max-width:140px; min-width:110px;">
+          <label>N° de legajo</label>
+          <input type="text" id="empLegajo" placeholder="Ej: 1024">
         </div>
       </div>
       <div class="row" style="flex-wrap:wrap;">
@@ -1313,12 +1313,6 @@
             <option value="CAMARERA">CAMARERA</option>
           </select>
         </div>
-        <div class="field" style="max-width:170px; min-width:150px;">
-          <label>Fecha de ingreso</label>
-          <input type="date" id="empFechaIngreso">
-        </div>
-      </div>
-      <div class="row" style="flex-wrap:wrap;">
         <div class="field" style="max-width:220px; min-width:180px;">
           <label>Turno</label>
           <select id="empTurno">
@@ -1327,6 +1321,10 @@
             <option value="SADO">SADO</option>
             <option value="Otro">Otro</option>
           </select>
+        </div>
+        <div class="field" style="max-width:170px; min-width:150px;">
+          <label>Fecha de ingreso</label>
+          <input type="date" id="empFechaIngreso">
         </div>
       </div>
       <div style="margin-top:12px;">
