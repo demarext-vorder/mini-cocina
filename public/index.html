@@ -798,6 +798,36 @@
   table.mp-table tbody tr:nth-child(even){ background:#EFEFEF; }
   .mp-legend{ margin-top:8px; font-size:10px; color:#555; }
 
+  /* --- Hoja impresa de Francos (planilla mensual, un mes y un puesto por vez) --- */
+  .francos-print-sheet{
+    background:#fff;
+    color:#111;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+    font-family:Arial,Helvetica,sans-serif;
+  }
+  table.francos-print-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:8.5px;
+    table-layout:fixed;
+  }
+  table.francos-print-table th, table.francos-print-table td{
+    border:1px solid #000;
+    padding:2px 1px;
+    text-align:center;
+  }
+  table.francos-print-table th.fp-nombre, table.francos-print-table td.fp-nombre{
+    text-align:left;
+    padding-left:4px;
+    width:100px;
+    font-weight:700;
+  }
+  table.francos-print-table th.fp-finde, table.francos-print-table td.fp-finde{ background:#ddd !important; }
+  table.francos-print-table td.fp-total{ font-weight:700; }
+  tr.fp-grupo-row td{ background:#000 !important; color:#fff !important; font-weight:700; text-align:left; padding:3px 6px; }
+
   /* --- Bloque de opciones de impresión: dos columnas lado a lado --- */
   .print-opciones{
     display:flex;
@@ -958,6 +988,15 @@
       box-decoration-break:clone !important;
     }
     table.mp-table tr{ break-inside:avoid !important; }
+    .francos-print-sheet{
+      border:none !important;
+      border-radius:0 !important;
+      padding:2cm 0 !important;
+      box-sizing:border-box !important;
+      -webkit-box-decoration-break:clone !important;
+      box-decoration-break:clone !important;
+    }
+    table.francos-print-table tr{ break-inside:avoid !important; }
     .sheet-day{
       margin:0 !important;
       padding: 2cm 0 !important;
@@ -1274,7 +1313,11 @@
         </div>
         <div class="field" style="min-width:160px;">
           <label>Puesto</label>
-          <input type="text" id="empPuesto" placeholder="Ej: Cocinero/a">
+          <select id="empPuesto">
+            <option value="DESPENSA">DESPENSA</option>
+            <option value="COCINA">COCINA</option>
+            <option value="CAMARERA">CAMARERA</option>
+          </select>
         </div>
         <div class="field" style="max-width:170px; min-width:150px;">
           <label>Fecha de ingreso</label>
@@ -1299,14 +1342,26 @@
 
     <div class="card" id="francosCard" style="display:none;">
       <h2><span class="n">📅</span> Francos del mes</h2>
-      <div class="field" style="max-width:200px;">
-        <label>Mes</label>
-        <input type="month" id="francosMes">
+      <div class="row" style="flex-wrap:wrap;">
+        <div class="field" style="max-width:200px;">
+          <label>Mes</label>
+          <input type="month" id="francosMes">
+        </div>
+        <div class="field" style="max-width:200px;">
+          <label>Puesto</label>
+          <select id="francosPuestoFiltro">
+            <option value="">Todos</option>
+            <option value="CAMARERA">Camareras</option>
+            <option value="DESPENSA">Despensa</option>
+            <option value="COCINA">Cocina</option>
+          </select>
+        </div>
       </div>
-      <div class="subtitle" style="margin:6px 0 4px;">Tocá un día para marcar o sacar el franco de ese empleado. No te olvides de guardar al terminar.</div>
+      <div class="subtitle" style="margin:6px 0 4px;">Tocá un día para marcar o sacar el franco de ese empleado. No te olvides de guardar al terminar. Elegí un puesto para ver o imprimir solo esos empleados.</div>
       <div id="francosGridWrap" style="overflow-x:auto; margin-top:8px;"></div>
-      <div style="margin-top:12px;">
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-primary" id="guardarFrancosBtn">Guardar francos</button>
+        <button class="btn btn-stamp" id="imprimirFrancosBtn">🖨 Imprimir francos</button>
       </div>
     </div>
 
@@ -2556,7 +2611,7 @@ function initApp(){
     $('#empNombre').value = '';
     $('#empApellido').value = '';
     $('#empTelefono').value = '';
-    $('#empPuesto').value = '';
+    $('#empPuesto').value = 'DESPENSA';
     $('#empFechaIngreso').value = '';
     $('#empTurno').value = 'Turno mañana';
     delete $('#saveEmpleadoBtn').dataset.editing;
@@ -2652,7 +2707,7 @@ function initApp(){
     $('#empNombre').value = emp.nombre || '';
     $('#empApellido').value = emp.apellido || '';
     $('#empTelefono').value = emp.telefono || '';
-    $('#empPuesto').value = emp.puesto || '';
+    $('#empPuesto').value = emp.puesto || 'DESPENSA';
     $('#empFechaIngreso').value = emp.fechaIngreso || '';
     $('#empTurno').value = emp.turno || 'Turno mañana';
     $('#saveEmpleadoBtn').dataset.editing = id;
@@ -2685,8 +2740,9 @@ function initApp(){
     if(francosCard.style.display === 'none'){ mostrarFrancos(); } else { ocultarFrancos(); }
   });
   $('#francosMes').addEventListener('change', renderFrancosGrid);
+  $('#francosPuestoFiltro').addEventListener('change', renderFrancosGrid);
 
-  let francosEnEdicion = {}; // { empleadoId: Set(dias) } -- copia editable del mes actualmente mostrado
+  let francosEnEdicion = {}; // { empleadoId: Set(dias) } -- copia editable del mes actualmente mostrado, SIEMPRE de todos los empleados (el filtro de puesto solo cambia qué filas se ven/imprimen)
 
   function letraDia(diaSemana){
     return ['D','L','M','M','J','V','S'][diaSemana];
@@ -2710,6 +2766,7 @@ function initApp(){
       return;
     }
 
+    const filtroPuesto = $('#francosPuestoFiltro').value;
     const grupos = ['Turno mañana', 'Turno tarde', 'SADO', 'Otro'];
     let html = '<table class="francos-table"><thead><tr><th class="francos-nombre">Empleado</th>';
     for(let d=1; d<=diasEnMes; d++){
@@ -2719,10 +2776,14 @@ function initApp(){
     }
     html += '<th>Francos</th></tr></thead><tbody>';
 
+    let huboAlguno = false;
     grupos.forEach(grupo=>{
-      const empsDelGrupo = empleados.filter(e => (e.turno || 'Turno mañana') === grupo)
+      const empsDelGrupo = empleados
+        .filter(e => (e.turno || 'Turno mañana') === grupo)
+        .filter(e => !filtroPuesto || e.puesto === filtroPuesto)
         .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||''));
       if(empsDelGrupo.length === 0) return;
+      huboAlguno = true;
       html += `<tr class="francos-grupo-row"><td colspan="${diasEnMes+2}">${escapeHtml(grupo)}</td></tr>`;
       empsDelGrupo.forEach(emp=>{
         html += `<tr data-emp="${emp.id}"><td class="francos-nombre">${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</td>`;
@@ -2737,6 +2798,11 @@ function initApp(){
       });
     });
     html += '</tbody></table>';
+
+    if(!huboAlguno){
+      wrap.innerHTML = '<div class="empty">No hay empleados cargados con ese puesto.</div>';
+      return;
+    }
     wrap.innerHTML = html;
 
     $$('.francos-dia', wrap).forEach(td=>{
@@ -2762,6 +2828,68 @@ function initApp(){
     francos[mesKey] = datosDelMes;
     await saveFrancos();
     alert('Francos guardados correctamente.');
+  });
+
+  // Hoja de impresión de Francos: mismo mes que se está viendo en pantalla,
+  // pero filtrada por el puesto elegido (o todos, si no se eligió ninguno).
+  const NOMBRES_MES_FRANCOS = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const ETIQUETA_PUESTO = { CAMARERA: 'CAMARERAS', DESPENSA: 'DESPENSA', COCINA: 'COCINA' };
+
+  function construirFrancosPrintSheet(mesKey, filtroPuesto){
+    const [anioStr, mesStr] = mesKey.split('-');
+    const anio = parseInt(anioStr,10), mes = parseInt(mesStr,10)-1;
+    const diasEnMes = new Date(anio, mes+1, 0).getDate();
+    const guardados = francos[mesKey] || {};
+
+    let headerCols = '<th class="fp-nombre">Empleado</th>';
+    for(let d=1; d<=diasEnMes; d++){
+      const diaSemana = new Date(anio, mes, d).getDay();
+      const finde = (diaSemana===0 || diaSemana===6) ? ' fp-finde' : '';
+      headerCols += `<th class="${finde.trim()}">${letraDia(diaSemana)}<br>${d}</th>`;
+    }
+    headerCols += '<th>Francos</th>';
+
+    const grupos = ['Turno mañana', 'Turno tarde', 'SADO', 'Otro'];
+    let filas = '';
+    grupos.forEach(grupo=>{
+      const empsDelGrupo = empleados
+        .filter(e => (e.turno || 'Turno mañana') === grupo)
+        .filter(e => !filtroPuesto || e.puesto === filtroPuesto)
+        .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||''));
+      if(empsDelGrupo.length === 0) return;
+      filas += `<tr class="fp-grupo-row"><td colspan="${diasEnMes+2}">${escapeHtml(grupo)}</td></tr>`;
+      empsDelGrupo.forEach(emp=>{
+        const dias = new Set(guardados[emp.id] || []);
+        filas += `<tr><td class="fp-nombre">${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</td>`;
+        for(let d=1; d<=diasEnMes; d++){
+          const diaSemana = new Date(anio, mes, d).getDay();
+          const finde = (diaSemana===0 || diaSemana===6) ? ' fp-finde' : '';
+          filas += `<td class="${finde.trim()}">${dias.has(d) ? 'F' : ''}</td>`;
+        }
+        filas += `<td class="fp-total">${dias.size}</td></tr>`;
+      });
+    });
+
+    if(!filas){
+      filas = `<tr><td colspan="${diasEnMes+2}">No hay empleados cargados con ese puesto.</td></tr>`;
+    }
+
+    const subtitulo = filtroPuesto ? ` — ${ETIQUETA_PUESTO[filtroPuesto] || filtroPuesto}` : '';
+
+    return `<div class="francos-print-sheet">
+      <div class="mp-title">FRANCOS ${NOMBRES_MES_FRANCOS[mes]} ${anio}${subtitulo}</div>
+      <table class="francos-print-table">
+        <thead><tr>${headerCols}</tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>`;
+  }
+
+  $('#imprimirFrancosBtn').addEventListener('click', ()=>{
+    const mesKey = $('#francosMes').value || todayISO().slice(0,7);
+    const filtroPuesto = $('#francosPuestoFiltro').value;
+    $('#printArea').innerHTML = construirFrancosPrintSheet(mesKey, filtroPuesto);
+    setTimeout(()=>window.print(), 60);
   });
 
   // ---------- Imprimir ----------
