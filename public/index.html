@@ -1627,4 +1627,1648 @@ function initApp(){
   // en cada re-dibujado. Ahora se pregunta una sola vez qué ids tienen foto
   // (un pedido chiquito) y cada imagen se baja una sola vez por sesión.
   const cacheImagenes = new Map(); // id -> dataUrl
-  let idsConImagen = null;         // Set con los
+  let idsConImagen = null;         // Set con los ids que tienen foto en el servidor
+
+  async function cargarIdsConImagen(){
+    if(idsConImagen) return idsConImagen;
+    try{
+      const resp = await fetch(`${API_URL}/imagenes`);
+      idsConImagen = new Set(resp.ok ? await resp.json() : []);
+    }catch(e){
+      idsConImagen = new Set();
+    }
+    return idsConImagen;
+  }
+
+  async function subirImagenReceta(recetaId, dataUrl){
+    if(appPassword === null) pedirContrasena();
+    const resp = await fetch(`${API_URL}/imagenes/${recetaId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-App-Password': appPassword || '' },
+      body: JSON.stringify({ imagen: dataUrl })
+    });
+    if(resp.status === 401){
+      olvidarContrasena();
+      alert('Contraseña incorrecta. La foto no se guardó -- volvé a intentar.');
+      return false;
+    }
+    if(resp.ok){
+      cacheImagenes.set(recetaId, dataUrl);
+      if(idsConImagen) idsConImagen.add(recetaId);
+    }
+    return resp.ok;
+  }
+
+  async function borrarImagenReceta(recetaId){
+    if(appPassword === null) pedirContrasena();
+    try{
+      await fetch(`${API_URL}/imagenes/${recetaId}`, {
+        method: 'DELETE',
+        headers: { 'X-App-Password': appPassword || '' }
+      });
+    }catch(e){
+      console.warn('No se pudo borrar la foto de la receta (puede que no tuviera)', e);
+    }
+    cacheImagenes.delete(recetaId);
+    if(idsConImagen) idsConImagen.delete(recetaId);
+  }
+
+  async function traerImagenReceta(recetaId){
+    if(cacheImagenes.has(recetaId)) return cacheImagenes.get(recetaId);
+    try{
+      const resp = await fetch(`${API_URL}/imagenes/${recetaId}`);
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      if(data.imagen) cacheImagenes.set(recetaId, data.imagen);
+      return data.imagen || null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  async function saveRecipes(){
+    await persistAll();
+  }
+  async function saveMenus(){
+    await persistAll();
+  }
+  async function saveMenusData(){
+    await persistAll();
+  }
+  async function saveListas(){
+    await persistAll();
+  }
+  async function saveHorario(){
+    await persistAll();
+  }
+  async function saveCiclo(){
+    await persistAll();
+  }
+  async function savePreparaciones(){
+    await persistAll();
+  }
+  async function saveEmpleados(){
+    await persistAll();
+  }
+  async function saveFrancos(){
+    await persistAll();
+  }
+
+  // ---------- Tabs ----------
+  $$('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+      $$('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      $('#panel-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab === 'preparaciones') renderPreparaciones();
+      if(btn.dataset.tab === 'menues') renderMenuList();
+      if(btn.dataset.tab === 'listas'){ renderListaList(); cargarFormularioCiclo(); }
+      if(btn.dataset.tab === 'personal'){
+        renderEmpleadoList();
+        if($('#francosCard').style.display !== 'none') renderFrancosGrid();
+      }
+      if(btn.dataset.tab === 'imprimir') renderPrintArea();
+    });
+  });
+
+  // ---------- Ingredient row builder (form) ----------
+  function addIngRow(prefill){
+    const row = prefill || {name:'', qty:'', unit:'gr'};
+    currentIngRows.push(row);
+    renderIngBuilder();
+  }
+  // Si una receta vieja quedó sin ingredientes, esto tiraba un error y se
+  // rompía todo el formulario. Con (r.ingredients || []) simplemente la saltea.
+  function nombresIngredientesUnicos(){
+    const set = new Set();
+    recipes.forEach(r => (r.ingredients || []).forEach(i => set.add(i.name)));
+    return Array.from(set);
+  }
+
+  function renderIngBuilder(){
+    const box = $('#ingredientsBuilder');
+    box.innerHTML = '';
+    currentIngRows.forEach((row, idx)=>{
+      const div = document.createElement('div');
+      div.className = 'ing-row';
+      div.innerHTML = `
+        <div class="ing-name-wrap">
+          <input type="text" placeholder="Ingrediente (ej: Cebolla)" value="${escapeHtml(row.name)}" data-idx="${idx}" data-f="name" autocomplete="off">
+          <div class="ms-panel ing-suggest"></div>
+        </div>
+        <input type="number" step="0.001" placeholder="Cant." value="${escapeHtml(String(row.qty ?? ''))}" data-idx="${idx}" data-f="qty">
+        <select data-idx="${idx}" data-f="unit">
+          ${UNITS.map(u=>`<option value="${u}" ${u===row.unit?'selected':''}>${u}</option>`).join('')}
+        </select>
+        <button class="rm" data-idx="${idx}" title="Quitar">×</button>
+      `;
+      box.appendChild(div);
+    });
+    $$('.ing-row input, .ing-row select', box).forEach(el=>{
+      el.addEventListener('input', e=>{
+        const idx = +e.target.dataset.idx;
+        const f = e.target.dataset.f;
+        currentIngRows[idx][f] = f==='qty' ? e.target.value : e.target.value;
+      });
+    });
+    $$('.ing-row .rm', box).forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        const idx = +e.target.dataset.idx;
+        currentIngRows.splice(idx,1);
+        renderIngBuilder();
+      });
+    });
+
+    // ---------- Autocompletado del nombre de ingrediente (solo primeras 4 letras) ----------
+    // La lista de nombres se arma una sola vez acá, en vez de recorrer todas
+    // las recetas con cada tecla que se aprieta en cada fila de ingredientes.
+    const nombresDisponibles = nombresIngredientesUnicos();
+    $$('.ing-name-wrap input[data-f="name"]', box).forEach(input=>{
+      const panel = input.parentElement.querySelector('.ing-suggest');
+      input.addEventListener('input', ()=>{
+        const texto = input.value.trim();
+        if(texto.length === 0 || texto.length > 4){
+          panel.classList.remove('open');
+          panel.innerHTML = '';
+          return;
+        }
+        const coincidencias = nombresDisponibles.filter(n =>
+          n.toLowerCase().startsWith(texto.toLowerCase())
+        ).slice(0, 8);
+        if(coincidencias.length === 0){
+          panel.classList.remove('open');
+          panel.innerHTML = '';
+          return;
+        }
+        panel.innerHTML = coincidencias.map(n => `
+          <div class="ms-option" data-name="${escapeHtml(n)}">${escapeHtml(n)}</div>
+        `).join('');
+        panel.classList.add('open');
+        $$('.ms-option', panel).forEach(opt=>{
+          opt.addEventListener('click', ()=>{
+            input.value = opt.dataset.name;
+            const idx = +input.dataset.idx;
+            currentIngRows[idx].name = opt.dataset.name;
+            panel.classList.remove('open');
+            panel.innerHTML = '';
+          });
+        });
+      });
+    });
+  }
+  document.addEventListener('click', (e)=>{
+    $$('.ing-suggest.open').forEach(panel=>{
+      if(!panel.parentElement.contains(e.target)) panel.classList.remove('open');
+    });
+  });
+  $('#addIngRow').addEventListener('click', ()=> addIngRow());
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- Autocompletado del nombre de receta (solo primeras 4 letras) ----------
+  const nombreInput = $('#newRecipeName');
+  const nombreSuggest = $('#recipeNameSuggest');
+
+  nombreInput.addEventListener('input', ()=>{
+    const texto = nombreInput.value.trim();
+    if(texto.length === 0 || texto.length > 4){
+      nombreSuggest.classList.remove('open');
+      nombreSuggest.innerHTML = '';
+      return;
+    }
+    const coincidencias = recipes.filter(r =>
+      r.name.toLowerCase().startsWith(texto.toLowerCase())
+    ).slice(0, 8);
+    if(coincidencias.length === 0){
+      nombreSuggest.classList.remove('open');
+      nombreSuggest.innerHTML = '';
+      return;
+    }
+    nombreSuggest.innerHTML = coincidencias.map(r => `
+      <div class="ms-option" data-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+    `).join('');
+    nombreSuggest.classList.add('open');
+    $$('.ms-option', nombreSuggest).forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        nombreInput.value = opt.dataset.name;
+        nombreSuggest.classList.remove('open');
+        nombreSuggest.innerHTML = '';
+      });
+    });
+  });
+  document.addEventListener('click', (e)=>{
+    if(e.target !== nombreInput && !nombreSuggest.contains(e.target)){
+      nombreSuggest.classList.remove('open');
+    }
+  });
+
+  $('#clearRecipeForm').addEventListener('click', resetRecipeForm);
+
+  function resetRecipeForm(){
+    $('#newRecipeName').value = '';
+    $('#newRecipeGroup').value = 'pacientes';
+    currentIngRows = [];
+    addIngRow();
+    delete $('#saveRecipeBtn').dataset.editing;
+    $('#saveRecipeBtn').textContent = 'Guardar receta';
+    nombreSuggest.classList.remove('open');
+    nombreSuggest.innerHTML = '';
+  }
+
+  $('#saveRecipeBtn').addEventListener('click', async ()=>{
+    const name = $('#newRecipeName').value.trim();
+    if(!name){ alert('Poné un nombre para el plato.'); return; }
+    const group = $('#newRecipeGroup').value;
+    const ings = currentIngRows
+      .map(r=>({name:(r.name||'').trim(), qty:parseFloat(r.qty), unit:r.unit||'kg'}))
+      .filter(r=>r.name && !isNaN(r.qty));
+    if(ings.length === 0){ alert('Agregá al menos un ingrediente con cantidad.'); return; }
+
+    const editingId = $('#saveRecipeBtn').dataset.editing;
+    if(editingId){
+      const idx = recipes.findIndex(r=>r.id===editingId);
+      if(idx>=0) recipes[idx] = {...recipes[idx], name, group, ingredients: ings};
+    } else {
+      recipes.push({id:uid(), name, group, ingredients: ings, preparacion: ''});
+    }
+    await saveRecipes();
+    resetRecipeForm();
+    renderRecipeList();
+  });
+
+  function renderRecipeList(){
+    const box = $('#recipeList');
+    $('#recipeCount').textContent = recipes.length;
+    if(recipes.length===0){
+      box.innerHTML = '<div class="empty">Todavía no cargaste ninguna receta.<br>Sumá el primer plato arriba ↑</div>';
+      return;
+    }
+    box.innerHTML = '';
+    recipes.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(rec=>{
+      const div = document.createElement('div');
+      div.className = 'recipe-chip';
+      div.id = `recipe-chip-${rec.id}`;
+      const groupLabel = rec.group==='pacientes' ? 'PACIENTES' : 'PERSONAL';
+      const ingsPreview = (rec.ingredients || []).map(i=>`${i.name} (${fmtNum(i.qty)} ${i.unit})`).join(' · ');
+      div.innerHTML = `
+        <div class="info">
+          <b>${escapeHtml(rec.name)}</b><span class="tag">${groupLabel}</span>
+          <div class="ings">${escapeHtml(ingsPreview)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-small btn-ghost" data-act="edit" data-id="${rec.id}">Editar</button>
+          <button class="btn btn-small btn-danger" data-act="del" data-id="${rec.id}">Borrar</button>
+        </div>
+      `;
+      box.appendChild(div);
+    });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editRecipe(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteRecipe(b.dataset.id)));
+  }
+
+  // ---------- Búsqueda de recetas (primeras 6 letras) ----------
+  const recipeSearchInput = $('#recipeSearchInput');
+  const recipeSearchSuggest = $('#recipeSearchSuggest');
+
+  function irAReceta(id){
+    const chip = $(`#recipe-chip-${id}`);
+    if(!chip) return;
+    chip.scrollIntoView({ behavior:'smooth', block:'center' });
+    chip.classList.remove('highlight');
+    void chip.offsetWidth; // fuerza el reinicio de la animación si se busca la misma dos veces
+    chip.classList.add('highlight');
+    recipeSearchInput.value = '';
+    recipeSearchSuggest.classList.remove('open');
+    recipeSearchSuggest.innerHTML = '';
+  }
+
+  recipeSearchInput.addEventListener('input', ()=>{
+    const texto = recipeSearchInput.value.trim();
+    if(texto.length === 0 || texto.length > 6){
+      recipeSearchSuggest.classList.remove('open');
+      recipeSearchSuggest.innerHTML = '';
+      return;
+    }
+    const coincidencias = recipes.filter(r =>
+      r.name.toLowerCase().includes(texto.toLowerCase())
+    ).slice(0, 8);
+    if(coincidencias.length === 0){
+      recipeSearchSuggest.innerHTML = '<div class="ms-empty">Sin coincidencias.</div>';
+      recipeSearchSuggest.classList.add('open');
+      return;
+    }
+    recipeSearchSuggest.innerHTML = coincidencias.map(r => `
+      <div class="ms-option" data-id="${r.id}">
+        ${escapeHtml(r.name)}
+        <span style="margin-left:6px; font-size:10px; font-weight:600; color:var(--accent-dark); background:var(--accent-tint); padding:2px 7px; border-radius:20px;">${r.group==='pacientes' ? 'PACIENTES' : 'PERSONAL'}</span>
+      </div>
+    `).join('');
+    recipeSearchSuggest.classList.add('open');
+    $$('.ms-option', recipeSearchSuggest).forEach(opt=>{
+      opt.addEventListener('click', ()=> irAReceta(opt.dataset.id));
+    });
+  });
+
+  recipeSearchInput.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      const primera = recipeSearchSuggest.querySelector('.ms-option');
+      if(primera) irAReceta(primera.dataset.id);
+    }
+  });
+
+  document.addEventListener('click', (e)=>{
+    if(e.target !== recipeSearchInput && !recipeSearchSuggest.contains(e.target)){
+      recipeSearchSuggest.classList.remove('open');
+    }
+  });
+
+  // ---------- Ver foto en tamaño completo (se usa desde Preparaciones) ----------
+  function abrirImagenCompleta(dataUrl){
+    $('#imagePreviewImg').src = dataUrl;
+    $('#imagePreviewOverlay').classList.add('open');
+  }
+  function cerrarImagenCompleta(){
+    $('#imagePreviewOverlay').classList.remove('open');
+    $('#imagePreviewImg').src = '';
+  }
+  $('#imagePreviewClose').addEventListener('click', cerrarImagenCompleta);
+  $('#imagePreviewOverlay').addEventListener('click', (e)=>{
+    if(e.target.id === 'imagePreviewOverlay') cerrarImagenCompleta();
+  });
+
+  function editRecipe(id){
+    const rec = recipes.find(r=>r.id===id);
+    if(!rec) return;
+    $('#newRecipeName').value = rec.name;
+    $('#newRecipeGroup').value = rec.group;
+    currentIngRows = (rec.ingredients || []).map(i=>({name:i.name, qty:i.qty, unit:i.unit}));
+    renderIngBuilder();
+    $('#saveRecipeBtn').dataset.editing = id;
+    $('#saveRecipeBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+    document.querySelector('[data-tab="recetario"]').click();
+  }
+
+  async function deleteRecipe(id){
+    if(!confirm('¿Borrar esta receta? También se va a quitar de los menúes donde esté incluida.')) return;
+    recipes = recipes.filter(r=>r.id!==id);
+    menus.forEach(m=>{ m.items = (m.items || []).filter(it=>it.recipeId!==id); });
+    await saveRecipes();
+    renderRecipeList();
+  }
+
+  // ---------- PREPARACIONES ----------
+  $('#addPrepCardBtn').addEventListener('click', async ()=>{
+    preparaciones.push({ id: uid(), nombre: '', texto: '' });
+    await savePreparaciones();
+    renderPreparaciones();
+    // Enfocamos el campo de nombre de la tarjeta recién creada (la última)
+    const ultima = preparaciones[preparaciones.length - 1];
+    const input = $(`#prep-name-${ultima.id}`);
+    if(input){ input.scrollIntoView({behavior:'smooth', block:'center'}); input.focus(); }
+  });
+
+  function renderPreparaciones(){
+    const box = $('#prepList');
+    if(preparaciones.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no armaste ninguna tarjeta.<br>Tocá "+ Nueva preparación" arriba ↑</div>';
+      return;
+    }
+    box.innerHTML = '';
+    preparaciones.forEach(prep=>{
+      const card = document.createElement('div');
+      card.className = 'prep-card';
+      card.innerHTML = `
+        <div class="prep-image-col">
+          <div class="prep-image-frame" id="prep-frame-${prep.id}">
+            <div class="prep-placeholder">Sin foto todavía</div>
+          </div>
+          <input type="file" class="prep-image-input" accept="image/*" data-id="${prep.id}">
+          <div class="prep-image-status" id="prep-imgstatus-${prep.id}"></div>
+        </div>
+        <div class="prep-text-col">
+          <label style="margin-bottom:2px;">Nombre a mostrar</label>
+          <input type="text" class="prep-name-input" id="prep-name-${prep.id}" placeholder="Escribí algo moni" value="${escapeHtml(prep.nombre || '')}" style="margin-bottom:12px;">
+          <div class="prep-label">PREPARACIÓN</div>
+          <textarea class="prep-textarea" id="prep-text-${prep.id}" placeholder="Método de cocción, tiempos, técnica, cómo se presenta el plato...">${escapeHtml(prep.texto || '')}</textarea>
+          <div class="prep-save-row">
+            <button class="btn btn-primary btn-small" data-act="save-prep" data-id="${prep.id}">Guardar preparación</button>
+            <button class="btn btn-danger btn-small" data-act="delete-prep" data-id="${prep.id}">Eliminar tarjeta</button>
+            <span class="prep-save-status" id="prep-savestatus-${prep.id}"></span>
+          </div>
+        </div>
+      `;
+      box.appendChild(card);
+    });
+
+    // Botón "Guardar preparación" de cada tarjeta
+    $$('[data-act="save-prep"]', box).forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.id;
+        const prep = preparaciones.find(p=>p.id===id);
+        if(!prep) return;
+        prep.nombre = $(`#prep-name-${id}`).value;
+        prep.texto = $(`#prep-text-${id}`).value;
+        const status = $(`#prep-savestatus-${id}`);
+        status.textContent = 'Guardando...';
+        await savePreparaciones();
+        status.textContent = 'Guardado ✓';
+        setTimeout(()=>{ status.textContent = ''; }, 2500);
+      });
+    });
+
+    // Botón "Eliminar tarjeta" -- borra la tarjeta entera, incluida su foto en la base de datos.
+    // Esto es totalmente independiente de recetas, menúes y listas: no las toca para nada.
+    $$('[data-act="delete-prep"]', box).forEach(btn=>{
+      btn.addEventListener('click', ()=> eliminarTarjetaPreparacion(btn.dataset.id));
+    });
+
+    // Subir foto: se comprime y se guarda aparte, en la tabla de imágenes
+    $$('.prep-image-input', box).forEach(input=>{
+      input.addEventListener('change', async (e)=>{
+        const id = input.dataset.id;
+        const file = e.target.files[0];
+        if(!file) return;
+        const status = $(`#prep-imgstatus-${id}`);
+        status.textContent = 'Comprimiendo y subiendo imagen...';
+        try{
+          const dataUrl = await comprimirImagen(file, 960, 0.75);
+          const ok = await subirImagenReceta(id, dataUrl);
+          if(ok){
+            mostrarImagenEnTarjeta(id, dataUrl);
+            status.textContent = 'Foto guardada ✓';
+            setTimeout(()=>{ status.textContent = ''; }, 2500);
+          } else {
+            status.textContent = 'No se pudo guardar la foto.';
+          }
+        }catch(err){
+          console.error(err);
+          status.textContent = 'No se pudo procesar la imagen.';
+        }
+      });
+    });
+
+    // Cargamos las fotos que ya existan, sin frenar la pantalla. Primero
+    // preguntamos qué tarjetas tienen foto y solo pedimos esas.
+    (async ()=>{
+      const conFoto = await cargarIdsConImagen();
+      for(const prep of preparaciones){
+        if(!conFoto.has(prep.id) && !cacheImagenes.has(prep.id)) continue;
+        const dataUrl = await traerImagenReceta(prep.id);
+        if(dataUrl) mostrarImagenEnTarjeta(prep.id, dataUrl);
+      }
+    })();
+  }
+
+  function mostrarImagenEnTarjeta(prepId, dataUrl){
+    const frame = $(`#prep-frame-${prepId}`);
+    if(!frame) return;
+    frame.innerHTML = `<img src="${dataUrl}" alt="" title="Doble clic para ver en grande">`;
+    frame.querySelector('img').addEventListener('dblclick', ()=> abrirImagenCompleta(dataUrl));
+  }
+
+  async function eliminarTarjetaPreparacion(id){
+    if(!confirm('¿Eliminar esta tarjeta de preparación? Se borra la foto, el nombre y el texto. No afecta ninguna receta, menú ni lista.')) return;
+    preparaciones = preparaciones.filter(p=>p.id!==id);
+    await savePreparaciones();
+    await borrarImagenReceta(id); // borra también la foto de la base de datos
+    renderPreparaciones();
+  }
+
+  // ---------- MENÚES ----------
+  let recetasSeleccionadasMS = []; // ids tildados en el desplegable de "Elegir recetas..."
+
+  function poblarSelectRecetas(){
+    const grupo = $('#newMenuGrupo').value;
+    const tipo = grupo.startsWith('PACIENTE') ? 'pacientes' : 'personal';
+    const opciones = recipes.filter(r => r.group === tipo);
+    recetasSeleccionadasMS = recetasSeleccionadasMS.filter(id => opciones.some(o=>o.id===id));
+
+    const panel = $('#menuItemRecipePanel');
+    if(opciones.length === 0){
+      panel.innerHTML = '<div class="ms-empty">No hay recetas cargadas para este grupo todavía.</div>';
+    } else {
+      panel.innerHTML = opciones.map(o => `
+        <label class="ms-option">
+          <input type="checkbox" value="${o.id}" ${recetasSeleccionadasMS.includes(o.id) ? 'checked' : ''}>
+          ${escapeHtml(o.name)}
+        </label>
+      `).join('');
+      $$('input[type=checkbox]', panel).forEach(cb=>{
+        cb.addEventListener('change', ()=>{
+          if(cb.checked) recetasSeleccionadasMS.push(cb.value);
+          else recetasSeleccionadasMS = recetasSeleccionadasMS.filter(id=>id!==cb.value);
+          actualizarTextoToggleMS();
+        });
+      });
+    }
+    actualizarTextoToggleMS();
+  }
+  $('#newMenuGrupo').addEventListener('change', poblarSelectRecetas);
+
+  function actualizarTextoToggleMS(){
+    const toggle = $('#menuItemRecipeToggle');
+    if(recetasSeleccionadasMS.length === 0){
+      toggle.textContent = 'Elegir recetas...';
+      toggle.classList.remove('has-selection');
+    } else {
+      toggle.textContent = `${recetasSeleccionadasMS.length} receta(s) seleccionada(s)`;
+      toggle.classList.add('has-selection');
+    }
+  }
+
+  $('#menuItemRecipeToggle').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    $('#menuItemRecipePanel').classList.toggle('open');
+  });
+  document.addEventListener('click', (e)=>{
+    const ms = $('#menuItemRecipeMS');
+    if(ms && !ms.contains(e.target)) $('#menuItemRecipePanel').classList.remove('open');
+  });
+
+  function renderMenuItemsBuilder(){
+    const box = $('#menuItemsBuilder');
+    if(currentMenuItems.length === 0){
+      box.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0;">Todavía no agregaste ningún plato.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    currentMenuItems.forEach((item, idx)=>{
+      const rec = recipes.find(r=>r.id===item.recipeId);
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+      row.innerHTML = `
+        <span><span class="rac">${item.raciones} rac.</span>${escapeHtml(rec ? rec.name : '(receta borrada)')}</span>
+        <button class="btn btn-small btn-danger" data-idx="${idx}">Quitar</button>
+      `;
+      box.appendChild(row);
+    });
+    $$('[data-idx]', box).forEach(b=>{
+      b.addEventListener('click', ()=>{
+        currentMenuItems.splice(+b.dataset.idx, 1);
+        renderMenuItemsBuilder();
+      });
+    });
+  }
+
+  function abrirModalRaciones(){
+    const lista = recetasSeleccionadasMS
+      .map(id => recipes.find(r=>r.id===id))
+      .filter(Boolean);
+    const box = $('#racionesModalList');
+    box.innerHTML = lista.map(r => `
+      <div class="modal-row">
+        <span class="nombre">${escapeHtml(r.name)}</span>
+        <input type="number" min="1" placeholder="Rac." data-recipe-id="${r.id}">
+      </div>
+    `).join('');
+    $('#racionesModalOverlay').classList.add('open');
+    const primerInput = box.querySelector('input');
+    if(primerInput) primerInput.focus();
+  }
+
+  function cerrarModalRaciones(){
+    $('#racionesModalOverlay').classList.remove('open');
+  }
+
+  $('#addMenuItemBtn').addEventListener('click', ()=>{
+    if(recetasSeleccionadasMS.length === 0){ alert('Tildá al menos una receta.'); return; }
+    $('#menuItemRecipePanel').classList.remove('open');
+    abrirModalRaciones();
+  });
+
+  $('#racionesModalCancel').addEventListener('click', cerrarModalRaciones);
+  $('#racionesModalOverlay').addEventListener('click', (e)=>{
+    if(e.target.id === 'racionesModalOverlay') cerrarModalRaciones();
+  });
+
+  $('#racionesModalConfirm').addEventListener('click', ()=>{
+    const inputs = $$('#racionesModalList input[data-recipe-id]');
+    const valores = inputs.map(inp => ({
+      recipeId: inp.dataset.recipeId,
+      raciones: parseInt(inp.value)
+    }));
+    const invalido = valores.find(v => !v.raciones || v.raciones <= 0);
+    if(invalido){
+      alert('Completá la cantidad de raciones para cada plato (un número mayor a 0).');
+      return;
+    }
+    valores.forEach(v => currentMenuItems.push(v));
+    recetasSeleccionadasMS = [];
+    poblarSelectRecetas();
+    renderMenuItemsBuilder();
+    cerrarModalRaciones();
+  });
+
+  function resetMenuForm(){
+    $('#newMenuName').value = '';
+    $('#newMenuGrupo').value = 'PACIENTE ALMUERZO';
+    currentMenuItems = [];
+    recetasSeleccionadasMS = [];
+    poblarSelectRecetas();
+    renderMenuItemsBuilder();
+    delete $('#saveMenuBtn').dataset.editing;
+    $('#saveMenuBtn').textContent = 'Guardar menú';
+  }
+  $('#clearMenuForm').addEventListener('click', resetMenuForm);
+
+  $('#saveMenuBtn').addEventListener('click', async ()=>{
+    const nombre = $('#newMenuName').value.trim();
+    if(!nombre){ alert('Poné un nombre para el menú.'); return; }
+    if(currentMenuItems.length === 0){ alert('Agregá al menos un plato al menú.'); return; }
+    const grupo = $('#newMenuGrupo').value;
+    const editingId = $('#saveMenuBtn').dataset.editing;
+    if(editingId){
+      const idx = menus.findIndex(m=>m.id===editingId);
+      if(idx>=0) menus[idx] = { ...menus[idx], nombre, grupo, items: currentMenuItems };
+    } else {
+      menus.push({ id: uid(), nombre, grupo, items: currentMenuItems });
+    }
+    await saveMenusData();
+    resetMenuForm();
+    renderMenuList();
+  });
+
+  function renderMenuList(){
+    const box = $('#menuList');
+    $('#menuCount').textContent = menus.length;
+    if(menus.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no armaste ningún menú.<br>Combiná recetas arriba ↑ para crear el primero.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    menus.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(m=>{
+      const div = document.createElement('div');
+      div.className = 'recipe-chip';
+      const platosPreview = (m.items || []).map(it=>{
+        const rec = recipes.find(r=>r.id===it.recipeId);
+        return `${rec ? rec.name : '(borrada)'} (${it.raciones} rac.)`;
+      }).join(' · ');
+      div.innerHTML = `
+        <div class="info">
+          <b>${escapeHtml(m.nombre)}</b><span class="tag">${m.grupo}</span>
+          <div class="ings">${escapeHtml(platosPreview)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-small btn-ghost" data-act="edit" data-id="${m.id}">Editar</button>
+          <button class="btn btn-small btn-danger" data-act="del" data-id="${m.id}">Borrar</button>
+        </div>
+      `;
+      box.appendChild(div);
+    });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editMenu(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteMenu(b.dataset.id)));
+  }
+
+  function editMenu(id){
+    const m = menus.find(x=>x.id===id);
+    if(!m) return;
+    $('#newMenuName').value = m.nombre;
+    $('#newMenuGrupo').value = m.grupo;
+    recetasSeleccionadasMS = [];
+    poblarSelectRecetas();
+    currentMenuItems = m.items.map(it=>({...it}));
+    renderMenuItemsBuilder();
+    $('#saveMenuBtn').dataset.editing = id;
+    $('#saveMenuBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+    document.querySelector('[data-tab="menues"]').click();
+  }
+
+  async function deleteMenu(id){
+    if(!confirm('¿Borrar este menú? También se va a quitar de las listas donde esté incluido.')) return;
+    menus = menus.filter(m=>m.id!==id);
+    listas.forEach(l=>{ l.menuIds = (l.menuIds || []).filter(mid=>mid!==id); });
+    await saveMenusData();
+    renderMenuList();
+  }
+
+  // ---------- LISTAS ----------
+  let menusSeleccionadosMS = []; // ids tildados en el desplegable de "Elegir menúes..."
+
+  function poblarSelectMenus(){
+    menusSeleccionadosMS = menusSeleccionadosMS.filter(id => menus.some(m=>m.id===id));
+    const panel = $('#listaMenuPanel');
+    if(menus.length === 0){
+      panel.innerHTML = '<div class="ms-empty">No hay menúes cargados todavía. Andá a la pestaña "Menúes" para crear alguno.</div>';
+    } else {
+      panel.innerHTML = menus.map(m => `
+        <label class="ms-option">
+          <input type="checkbox" value="${m.id}" ${menusSeleccionadosMS.includes(m.id) ? 'checked' : ''}>
+          ${escapeHtml(m.nombre)} <span class="tag" style="background:var(--accent-tint);color:var(--accent-dark);border-radius:20px;padding:1px 7px;font-size:10px;margin-left:4px;">${m.grupo}</span>
+        </label>
+      `).join('');
+      $$('input[type=checkbox]', panel).forEach(cb=>{
+        cb.addEventListener('change', ()=>{
+          if(cb.checked) menusSeleccionadosMS.push(cb.value);
+          else menusSeleccionadosMS = menusSeleccionadosMS.filter(id=>id!==cb.value);
+          actualizarTextoToggleListaMS();
+        });
+      });
+    }
+    actualizarTextoToggleListaMS();
+  }
+
+  function actualizarTextoToggleListaMS(){
+    const toggle = $('#listaMenuToggle');
+    if(menusSeleccionadosMS.length === 0){
+      toggle.textContent = 'Elegir menúes...';
+      toggle.classList.remove('has-selection');
+    } else {
+      toggle.textContent = `${menusSeleccionadosMS.length} menú(es) seleccionado(s)`;
+      toggle.classList.add('has-selection');
+    }
+  }
+
+  $('#listaMenuToggle').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    $('#listaMenuPanel').classList.toggle('open');
+  });
+  document.addEventListener('click', (e)=>{
+    const ms = $('#listaMenuMS');
+    if(ms && !ms.contains(e.target)) $('#listaMenuPanel').classList.remove('open');
+  });
+
+  function renderListaItemsBuilder(){
+    const box = $('#listaItemsBuilder');
+    if(currentListaMenuIds.length === 0){
+      box.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0;">Todavía no agregaste ningún menú.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    currentListaMenuIds.forEach((menuId, idx)=>{
+      const m = menus.find(x=>x.id===menuId);
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+      row.innerHTML = `
+        <span>${escapeHtml(m ? m.nombre : '(menú borrado)')} <span class="tag" style="background:var(--accent-tint);color:var(--accent-dark);border-radius:20px;padding:1px 7px;font-size:10.5px;margin-left:6px;">${m ? m.grupo : ''}</span></span>
+        <button class="btn btn-small btn-danger" data-idx="${idx}">Quitar</button>
+      `;
+      box.appendChild(row);
+    });
+    $$('[data-idx]', box).forEach(b=>{
+      b.addEventListener('click', ()=>{
+        currentListaMenuIds.splice(+b.dataset.idx, 1);
+        renderListaItemsBuilder();
+      });
+    });
+  }
+
+  $('#addListaMenuBtn').addEventListener('click', ()=>{
+    if(menusSeleccionadosMS.length === 0){ alert('Tildá al menos un menú.'); return; }
+    menusSeleccionadosMS.forEach(menuId=>{
+      if(!currentListaMenuIds.includes(menuId)) currentListaMenuIds.push(menuId);
+    });
+    menusSeleccionadosMS = [];
+    $('#listaMenuPanel').classList.remove('open');
+    poblarSelectMenus();
+    renderListaItemsBuilder();
+  });
+
+  function resetListaForm(){
+    $('#newListaName').value = '';
+    currentListaMenuIds = [];
+    menusSeleccionadosMS = [];
+    poblarSelectMenus();
+    renderListaItemsBuilder();
+    delete $('#saveListaBtn').dataset.editing;
+    $('#saveListaBtn').textContent = 'Guardar lista';
+  }
+  $('#clearListaForm').addEventListener('click', resetListaForm);
+
+  $('#saveListaBtn').addEventListener('click', async ()=>{
+    const nombre = $('#newListaName').value.trim();
+    if(!nombre){ alert('Poné un nombre para la lista.'); return; }
+    if(currentListaMenuIds.length === 0){ alert('Agregá al menos un menú a la lista.'); return; }
+    const editingId = $('#saveListaBtn').dataset.editing;
+    if(editingId){
+      const idx = listas.findIndex(l=>l.id===editingId);
+      if(idx>=0) listas[idx] = { ...listas[idx], nombre, menuIds: currentListaMenuIds };
+    } else {
+      listas.push({ id: uid(), nombre, menuIds: currentListaMenuIds });
+    }
+    await saveListas();
+    resetListaForm();
+    renderListaList();
+    cargarFormularioCiclo();
+  });
+
+  function renderListaList(){
+    poblarSelectMenus();
+    const box = $('#listaList');
+    $('#listaCount').textContent = listas.length;
+    if(listas.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no armaste ninguna lista.<br>Combiná menúes arriba ↑ para crear la primera.</div>';
+      return;
+    }
+    box.innerHTML = '';
+    listas.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(l=>{
+      const div = document.createElement('div');
+      div.className = 'recipe-chip';
+      const menusPreview = (l.menuIds || []).map(mid=>{
+        const m = menus.find(x=>x.id===mid);
+        return m ? m.nombre : '(borrado)';
+      }).join(' · ');
+      div.innerHTML = `
+        <div class="info">
+          <b>${escapeHtml(l.nombre)}</b>
+          <div class="ings">${escapeHtml(menusPreview)}</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-small btn-ghost" data-act="edit" data-id="${l.id}">Editar</button>
+          <button class="btn btn-small btn-danger" data-act="del" data-id="${l.id}">Borrar</button>
+        </div>
+      `;
+      box.appendChild(div);
+    });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editLista(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteLista(b.dataset.id)));
+  }
+
+  function editLista(id){
+    const l = listas.find(x=>x.id===id);
+    if(!l) return;
+    $('#newListaName').value = l.nombre;
+    menusSeleccionadosMS = [];
+    poblarSelectMenus();
+    currentListaMenuIds = [...l.menuIds];
+    renderListaItemsBuilder();
+    $('#saveListaBtn').dataset.editing = id;
+    $('#saveListaBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+    document.querySelector('[data-tab="listas"]').click();
+  }
+
+  async function deleteLista(id){
+    if(!confirm('¿Borrar esta lista? También se va a quitar del ciclo donde esté incluida.')) return;
+    listas = listas.filter(l=>l.id!==id);
+    if(ciclo.secuenciaListaIds){
+      ciclo.secuenciaListaIds = ciclo.secuenciaListaIds.filter(lid => lid !== id);
+    }
+    await saveListas();
+    renderListaList();
+    cargarFormularioCiclo();
+  }
+
+  // ---------- CICLO DE LISTAS ----------
+  function poblarSelectCiclo(){
+    const sel = $('#cicloListaSel');
+    sel.innerHTML = '<option value="">Agregar lista al ciclo...</option>' +
+      listas.map(l=>`<option value="${l.id}">${escapeHtml(l.nombre)}</option>`).join('');
+  }
+
+  function renderCicloSecuencia(){
+    const box = $('#cicloSecuenciaBuilder');
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0){
+      box.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:4px 0;">Todavía no armaste el orden del ciclo.</div>';
+    } else {
+      box.innerHTML = '';
+      seq.forEach((listaId, idx)=>{
+        const l = listas.find(x=>x.id===listaId);
+        const row = document.createElement('div');
+        row.className = 'ciclo-row';
+        row.innerHTML = `
+          <span class="pos">${idx+1}</span>
+          <span class="nombre">${escapeHtml(l ? l.nombre : '(lista borrada)')}</span>
+          <button class="mini-btn" data-act="up" data-idx="${idx}" title="Subir" ${idx===0?'disabled':''}>▲</button>
+          <button class="mini-btn" data-act="down" data-idx="${idx}" title="Bajar" ${idx===seq.length-1?'disabled':''}>▼</button>
+          <button class="mini-btn" data-act="del" data-idx="${idx}" title="Quitar">✕</button>
+        `;
+        box.appendChild(row);
+      });
+      $$('.mini-btn', box).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const idx = +btn.dataset.idx;
+          const act = btn.dataset.act;
+          if(act==='del') seq.splice(idx,1);
+          if(act==='up' && idx>0) [seq[idx-1],seq[idx]] = [seq[idx],seq[idx-1]];
+          if(act==='down' && idx<seq.length-1) [seq[idx+1],seq[idx]] = [seq[idx],seq[idx+1]];
+          renderCicloSecuencia();
+          renderCicloPreview();
+        });
+      });
+    }
+    renderCicloPreview();
+  }
+
+  $('#addCicloListaBtn').addEventListener('click', ()=>{
+    const sel = $('#cicloListaSel');
+    if(!sel.value){ alert('Elegí una lista para agregar al ciclo.'); return; }
+    if(!ciclo.secuenciaListaIds) ciclo.secuenciaListaIds = [];
+    ciclo.secuenciaListaIds.push(sel.value);
+    sel.value = '';
+    renderCicloSecuencia();
+  });
+
+  // Dada una fecha (YYYY-MM-DD), devuelve la lista que le corresponde según el ciclo, o null.
+  function resolverListaParaFecha(fecha){
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0 || !ciclo.fechaInicio) return null;
+    const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+    const dFecha = new Date(fecha + 'T00:00:00');
+    const diffDias = Math.round((dFecha - dIni) / 86400000);
+    if(diffDias < 0) return null; // fecha anterior al inicio del ciclo
+    const idx = diffDias % seq.length;
+    const listaId = seq[idx];
+    return listas.find(l => l.id === listaId) || null;
+  }
+
+  let cicloMesMostrado = null; // Date del primer día del mes que se está mostrando
+
+  function renderCicloPreview(){
+    const box = $('#cicloPreview');
+    const label = $('#cicloMesLabel');
+    const seq = ciclo.secuenciaListaIds || [];
+
+    if(seq.length === 0 || !ciclo.fechaInicio){
+      box.innerHTML = '<div class="empty">Armá el orden del ciclo y elegí la fecha de inicio para ver el almanaque.</div>';
+      label.textContent = '';
+      return;
+    }
+
+    if(!cicloMesMostrado){
+      const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+      cicloMesMostrado = new Date(dIni.getFullYear(), dIni.getMonth(), 1);
+    }
+
+    const anio = cicloMesMostrado.getFullYear();
+    const mes = cicloMesMostrado.getMonth();
+    const NOMBRES_MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    label.textContent = `${NOMBRES_MES[mes]} ${anio}`;
+
+    const primerDiaSemana = new Date(anio, mes, 1).getDay(); // 0=Domingo
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+    const hoyISO = todayISO();
+
+    let html = '<div class="almanaque">';
+    ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(d=>{
+      html += `<div class="dia-header">${d}</div>`;
+    });
+    for(let i=0; i<primerDiaSemana; i++){
+      html += '<div class="dia-celda vacia"></div>';
+    }
+    for(let dia=1; dia<=diasEnMes; dia++){
+      const fechaISO = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const l = resolverListaParaFecha(fechaISO);
+      const esHoy = fechaISO === hoyISO ? ' hoy' : '';
+      html += `<div class="dia-celda${esHoy}">
+        <span class="dia-num">${dia}</span>
+        ${l ? `<span class="dia-lista">${escapeHtml(l.nombre)}</span>` : '<span class="dia-sinlista">—</span>'}
+      </div>`;
+    }
+    html += '</div>';
+    box.innerHTML = html;
+  }
+
+  $('#cicloMesAnterior').addEventListener('click', ()=>{
+    if(!cicloMesMostrado) return;
+    cicloMesMostrado = new Date(cicloMesMostrado.getFullYear(), cicloMesMostrado.getMonth() - 1, 1);
+    renderCicloPreview();
+  });
+  $('#cicloMesSiguiente').addEventListener('click', ()=>{
+    if(!cicloMesMostrado) return;
+    cicloMesMostrado = new Date(cicloMesMostrado.getFullYear(), cicloMesMostrado.getMonth() + 1, 1);
+    renderCicloPreview();
+  });
+
+  $('#cicloFechaInicio').addEventListener('change', ()=>{
+    cicloMesMostrado = null; // al cambiar la fecha de inicio, volvemos a mostrar su mes
+    renderCicloPreview();
+  });
+
+  $('#guardarCicloBtn').addEventListener('click', async ()=>{
+    const fechaInicio = $('#cicloFechaInicio').value;
+    if(!fechaInicio){ alert('Elegí desde qué día empieza el ciclo.'); return; }
+    if(!ciclo.secuenciaListaIds || ciclo.secuenciaListaIds.length === 0){ alert('Agregá al menos una lista al orden del ciclo.'); return; }
+    ciclo.fechaInicio = fechaInicio;
+    await saveCiclo();
+    renderCicloPreview();
+    alert('Ciclo guardado correctamente.');
+  });
+
+  function cargarFormularioCiclo(){
+    poblarSelectCiclo();
+    $('#cicloFechaInicio').value = ciclo.fechaInicio || '';
+    renderCicloSecuencia();
+  }
+
+  // ---------- PERSONAL ----------
+  // Calcula los días de vacaciones según la antigüedad, a partir de la fecha de ingreso.
+  // Tramos (Ley de Contrato de Trabajo, art. 150/153):
+  //   menos de 6 meses: 1 día por cada 20 días efectivamente trabajados (proporcional)
+  //   de 6 meses hasta 5 años inclusive: 14 días
+  //   más de 5 y hasta 10 años inclusive: 21 días
+  //   más de 10 y hasta 20 años inclusive: 28 días
+  //   más de 20 años: 35 días
+  // Se recalcula siempre contra la fecha de HOY, así que se va actualizando solo con el tiempo.
+  function calcularVacaciones(fechaIngresoISO, fechaRefISO){
+    if(!fechaIngresoISO) return null;
+    const ini = new Date(fechaIngresoISO + 'T00:00:00');
+    const ref = new Date((fechaRefISO || todayISO()) + 'T00:00:00');
+    if(isNaN(ini.getTime()) || ref < ini) return null;
+
+    const diasTrabajados = Math.floor((ref - ini) / 86400000);
+
+    // Antigüedad en meses completos (para ubicar el tramo correspondiente).
+    let anios = ref.getFullYear() - ini.getFullYear();
+    let meses = ref.getMonth() - ini.getMonth();
+    if(ref.getDate() < ini.getDate()) meses--;
+    if(meses < 0){ anios--; meses += 12; }
+    const mesesCompletos = anios * 12 + meses;
+
+    let dias, tramo;
+    if(mesesCompletos < 6){
+      dias = Math.floor(diasTrabajados / 20);
+      tramo = 'menos de 6 meses · proporcional';
+    } else if(mesesCompletos <= 60){
+      dias = 14;
+      tramo = '6 meses a 5 años';
+    } else if(mesesCompletos <= 120){
+      dias = 21;
+      tramo = '5 a 10 años';
+    } else if(mesesCompletos <= 240){
+      dias = 28;
+      tramo = '10 a 20 años';
+    } else {
+      dias = 35;
+      tramo = 'más de 20 años';
+    }
+    return { dias, tramo, mesesCompletos, diasTrabajados };
+  }
+
+  // Texto tipo "3 años y 4 meses" a partir de la fecha de ingreso.
+  function fmtAntiguedad(fechaIngresoISO){
+    const v = calcularVacaciones(fechaIngresoISO);
+    if(!v) return '—';
+    const anios = Math.floor(v.mesesCompletos / 12);
+    const mesesResto = v.mesesCompletos % 12;
+    const partes = [];
+    if(anios > 0) partes.push(`${anios} año${anios !== 1 ? 's' : ''}`);
+    if(mesesResto > 0 || anios === 0) partes.push(`${mesesResto} mes${mesesResto !== 1 ? 'es' : ''}`);
+    return partes.join(' y ');
+  }
+
+  function resetEmpleadoForm(){
+    $('#empLegajo').value = '';
+    $('#empNombre').value = '';
+    $('#empApellido').value = '';
+    $('#empPuesto').value = 'DESPENSA';
+    $('#empFechaIngreso').value = '';
+    $('#empTurno').value = 'Turno mañana';
+    delete $('#saveEmpleadoBtn').dataset.editing;
+    $('#saveEmpleadoBtn').textContent = 'Guardar empleado';
+  }
+
+  // El formulario de carga queda oculto hasta que se toca "+ Agregar empleado";
+  // ese mismo botón funciona como toggle para mostrarlo/ocultarlo.
+  const empFormCard = $('#empFormCard');
+  const toggleEmpFormBtn = $('#toggleEmpFormBtn');
+
+  function mostrarFormEmpleado(){
+    empFormCard.style.display = 'block';
+    toggleEmpFormBtn.textContent = '− Cerrar formulario';
+  }
+  function ocultarFormEmpleado(){
+    empFormCard.style.display = 'none';
+    toggleEmpFormBtn.textContent = '+ Agregar empleado';
+    resetEmpleadoForm();
+  }
+  toggleEmpFormBtn.addEventListener('click', ()=>{
+    if(empFormCard.style.display === 'none'){
+      mostrarFormEmpleado();
+    } else {
+      ocultarFormEmpleado();
+    }
+  });
+
+  $('#saveEmpleadoBtn').addEventListener('click', async ()=>{
+    const legajo = $('#empLegajo').value.trim();
+    const nombre = $('#empNombre').value.trim();
+    const apellido = $('#empApellido').value.trim();
+    const puesto = $('#empPuesto').value.trim();
+    const fechaIngreso = $('#empFechaIngreso').value;
+    const turno = $('#empTurno').value;
+    if(!nombre || !apellido){ alert('Poné al menos el nombre y el apellido del empleado.'); return; }
+
+    const editingId = $('#saveEmpleadoBtn').dataset.editing;
+    if(editingId){
+      const idx = empleados.findIndex(e=>e.id===editingId);
+      if(idx>=0) empleados[idx] = {...empleados[idx], legajo, nombre, apellido, puesto, fechaIngreso, turno};
+    } else {
+      empleados.push({id:uid(), legajo, nombre, apellido, puesto, fechaIngreso, turno});
+    }
+    await saveEmpleados();
+    ocultarFormEmpleado();
+    renderEmpleadoList();
+  });
+
+  function renderEmpleadoList(){
+    const box = $('#empleadoList');
+    $('#empleadoCount').textContent = empleados.length;
+    if(empleados.length === 0){
+      box.innerHTML = '<div class="empty">Todavía no cargaste ningún empleado.<br>Sumá el primero arriba ↑</div>';
+      return;
+    }
+    box.innerHTML = '';
+    empleados.slice()
+      .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||'') || (a.nombre||'').localeCompare(b.nombre||''))
+      .forEach(emp=>{
+        const div = document.createElement('div');
+        div.className = 'recipe-chip';
+        div.id = `emp-chip-${emp.id}`;
+        const vac = calcularVacaciones(emp.fechaIngreso);
+        const vacTxt = vac ? `${vac.dias} día${vac.dias !== 1 ? 's' : ''} (${vac.tramo})` : 'sin fecha de ingreso cargada';
+        const antTxt = fmtAntiguedad(emp.fechaIngreso);
+        const ingresoTxt = emp.fechaIngreso ? `${fmtDateHuman(emp.fechaIngreso)} · antigüedad: ${antTxt}` : 'sin fecha de ingreso';
+        div.innerHTML = `
+          <div class="info">
+            <div class="emp-primary">
+              <b>${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</b><span class="tag">LEGAJO ${escapeHtml(emp.legajo || '—')}</span>
+            </div>
+            <div class="ings">${escapeHtml(emp.puesto || 'Sin puesto')} · ${escapeHtml(emp.turno || 'Turno mañana')}</div>
+            <div class="ings">Ingreso: ${ingresoTxt} · Vacaciones: ${vacTxt}</div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-small btn-ghost" data-act="edit" data-id="${emp.id}">Editar</button>
+            <button class="btn btn-small btn-danger" data-act="del" data-id="${emp.id}">Borrar</button>
+          </div>
+        `;
+        box.appendChild(div);
+      });
+    $$('[data-act="edit"]', box).forEach(b=> b.addEventListener('click', ()=> editEmpleado(b.dataset.id)));
+    $$('[data-act="del"]', box).forEach(b=> b.addEventListener('click', ()=> deleteEmpleado(b.dataset.id)));
+  }
+
+  function editEmpleado(id){
+    const emp = empleados.find(e=>e.id===id);
+    if(!emp) return;
+    mostrarFormEmpleado();
+    $('#empLegajo').value = emp.legajo || '';
+    $('#empNombre').value = emp.nombre || '';
+    $('#empApellido').value = emp.apellido || '';
+    $('#empPuesto').value = emp.puesto || 'DESPENSA';
+    $('#empFechaIngreso').value = emp.fechaIngreso || '';
+    $('#empTurno').value = emp.turno || 'Turno mañana';
+    $('#saveEmpleadoBtn').dataset.editing = id;
+    $('#saveEmpleadoBtn').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  async function deleteEmpleado(id){
+    if(!confirm('¿Borrar este empleado de la lista?')) return;
+    empleados = empleados.filter(e=>e.id!==id);
+    await saveEmpleados();
+    renderEmpleadoList();
+  }
+
+  // ---------- Francos (días libres del mes) ----------
+  const francosCard = $('#francosCard');
+  const toggleFrancosBtn = $('#toggleFrancosBtn');
+  $('#francosMes').value = todayISO().slice(0,7);
+
+  function mostrarFrancos(){
+    francosCard.style.display = 'block';
+    toggleFrancosBtn.textContent = '− Cerrar francos';
+    renderFrancosGrid();
+  }
+  function ocultarFrancos(){
+    francosCard.style.display = 'none';
+    toggleFrancosBtn.textContent = '📅 Francos';
+  }
+  toggleFrancosBtn.addEventListener('click', ()=>{
+    if(francosCard.style.display === 'none'){ mostrarFrancos(); } else { ocultarFrancos(); }
+  });
+  $('#francosMes').addEventListener('change', renderFrancosGrid);
+  $('#francosPuestoFiltro').addEventListener('change', renderFrancosGrid);
+
+  // { 'YYYY-MM': { empleadoId: Set(dias) } } -- copia editable, un cajón por mes.
+  // ANTES esto se rearmaba desde lo guardado CADA vez que se dibujaba la grilla:
+  // si marcabas francos y después cambiabas el filtro de puesto, cambiabas de mes
+  // o te ibas a otra pestaña y volvías, las marcas sin guardar desaparecían sin aviso.
+  // Ahora lo que marcaste queda en memoria hasta que guardás o recargás la página.
+  const francosEditados = {};
+  const francosSucios = {};  // { 'YYYY-MM': true } si ese mes tiene cambios sin guardar
+  let francosEnEdicion = {}; // atajo al cajón del mes que se está mostrando
+
+  function hayFrancosSinGuardar(){
+    return Object.keys(francosSucios).some(k => francosSucios[k]);
+  }
+  // Aviso del navegador si te vas con francos marcados y sin guardar.
+  window.addEventListener('beforeunload', (e)=>{
+    if(hayFrancosSinGuardar()){ e.preventDefault(); e.returnValue = ''; }
+  });
+
+  function letraDia(diaSemana){
+    return ['D','L','M','M','J','V','S'][diaSemana];
+  }
+
+  function renderFrancosGrid(){
+    const mesKey = $('#francosMes').value || todayISO().slice(0,7);
+    const [anioStr, mesStr] = mesKey.split('-');
+    const anio = parseInt(anioStr,10), mes = parseInt(mesStr,10)-1;
+    const diasEnMes = new Date(anio, mes+1, 0).getDate();
+
+    const guardados = francos[mesKey] || {};
+    if(!francosEditados[mesKey]) francosEditados[mesKey] = {};
+    francosEnEdicion = francosEditados[mesKey];
+    // Solo se completa desde lo guardado lo que todavía no está en edición
+    // (por ejemplo, un empleado recién cargado). Lo ya marcado se respeta.
+    empleados.forEach(emp=>{
+      if(!francosEnEdicion[emp.id]) francosEnEdicion[emp.id] = new Set(guardados[emp.id] || []);
+    });
+
+    const wrap = $('#francosGridWrap');
+    if(empleados.length === 0){
+      wrap.innerHTML = '<div class="empty">Todavía no cargaste ningún empleado.</div>';
+      return;
+    }
+
+    const filtroPuesto = $('#francosPuestoFiltro').value;
+    const grupos = ['Turno mañana', 'Turno tarde', 'SADO', 'Otro'];
+    // Los días de semana se calculan UNA sola vez y se reutilizan en todas las
+    // filas (antes se creaba un objeto Date por cada casillero: 31 x cada empleado).
+    const findePorDia = [];
+    const letraPorDia = [];
+    for(let d=1; d<=diasEnMes; d++){
+      const diaSemana = new Date(anio, mes, d).getDay();
+      findePorDia[d] = (diaSemana===0 || diaSemana===6) ? ' finde' : '';
+      letraPorDia[d] = letraDia(diaSemana);
+    }
+    let html = '<table class="francos-table"><thead><tr><th class="francos-nombre">Empleado</th>';
+    for(let d=1; d<=diasEnMes; d++){
+      html += `<th class="${findePorDia[d].trim()}">${letraPorDia[d]}<br>${d}</th>`;
+    }
+    html += '<th>Francos</th></tr></thead><tbody>';
+
+    let huboAlguno = false;
+    grupos.forEach(grupo=>{
+      const empsDelGrupo = empleados
+        .filter(e => (e.turno || 'Turno mañana') === grupo)
+        .filter(e => !filtroPuesto || e.puesto === filtroPuesto)
+        .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||''));
+      if(empsDelGrupo.length === 0) return;
+      huboAlguno = true;
+      html += `<tr class="francos-grupo-row"><td colspan="${diasEnMes+2}">${escapeHtml(grupo)}</td></tr>`;
+      empsDelGrupo.forEach(emp=>{
+        html += `<tr data-emp="${emp.id}"><td class="francos-nombre">${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</td>`;
+        const setEmp = francosEnEdicion[emp.id];
+        for(let d=1; d<=diasEnMes; d++){
+          const marcado = setEmp.has(d) ? ' marcado' : '';
+          html += `<td class="francos-dia${findePorDia[d]}${marcado}" data-emp="${emp.id}" data-dia="${d}">${setEmp.has(d) ? 'F' : ''}</td>`;
+        }
+        html += `<td class="francos-total" data-total="${emp.id}">${francosEnEdicion[emp.id].size}</td>`;
+        html += '</tr>';
+      });
+    });
+    html += '</tbody></table>';
+
+    if(!huboAlguno){
+      wrap.innerHTML = '<div class="empty">No hay empleados cargados con ese puesto.</div>';
+      return;
+    }
+    wrap.innerHTML = html;
+
+    $$('.francos-dia', wrap).forEach(td=>{
+      td.addEventListener('click', ()=>{
+        const empId = td.dataset.emp;
+        const dia = parseInt(td.dataset.dia, 10);
+        const set = francosEnEdicion[empId];
+        if(set.has(dia)){ set.delete(dia); td.classList.remove('marcado'); td.textContent=''; }
+        else { set.add(dia); td.classList.add('marcado'); td.textContent='F'; }
+        francosSucios[mesKey] = true;
+        const totalCell = wrap.querySelector(`[data-total="${empId}"]`);
+        if(totalCell) totalCell.textContent = set.size;
+      });
+    });
+  }
+
+  $('#guardarFrancosBtn').addEventListener('click', async ()=>{
+    const mesKey = $('#francosMes').value || todayISO().slice(0,7);
+    const datosDelMes = {};
+    Object.keys(francosEnEdicion).forEach(empId=>{
+      const dias = Array.from(francosEnEdicion[empId]).sort((a,b)=>a-b);
+      if(dias.length>0) datosDelMes[empId] = dias;
+    });
+    francos[mesKey] = datosDelMes;
+    await saveFrancos();
+    francosSucios[mesKey] = false;
+    alert('Francos guardados correctamente.');
+  });
+
+  // Hoja de impresión de Francos: mismo mes que se está viendo en pantalla,
+  // pero filtrada por el puesto elegido (o todos, si no se eligió ninguno).
+  const NOMBRES_MES_FRANCOS = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const ETIQUETA_PUESTO = { CAMARERA: 'CAMARERAS', DESPENSA: 'DESPENSA', COCINA: 'COCINA' };
+
+  function construirFrancosPrintSheet(mesKey, filtroPuesto){
+    const [anioStr, mesStr] = mesKey.split('-');
+    const anio = parseInt(anioStr,10), mes = parseInt(mesStr,10)-1;
+    const diasEnMes = new Date(anio, mes+1, 0).getDate();
+    const guardados = francos[mesKey] || {};
+
+    let headerCols = '<th class="fp-nombre">Empleado</th>';
+    for(let d=1; d<=diasEnMes; d++){
+      const diaSemana = new Date(anio, mes, d).getDay();
+      const finde = (diaSemana===0 || diaSemana===6) ? ' fp-finde' : '';
+      headerCols += `<th class="${finde.trim()}">${letraDia(diaSemana)}<br>${d}</th>`;
+    }
+    headerCols += '<th>Francos</th>';
+
+    const grupos = ['Turno mañana', 'Turno tarde', 'SADO', 'Otro'];
+    let filas = '';
+    grupos.forEach(grupo=>{
+      const empsDelGrupo = empleados
+        .filter(e => (e.turno || 'Turno mañana') === grupo)
+        .filter(e => !filtroPuesto || e.puesto === filtroPuesto)
+        .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||''));
+      if(empsDelGrupo.length === 0) return;
+      filas += `<tr class="fp-grupo-row"><td colspan="${diasEnMes+2}">${escapeHtml(grupo)}</td></tr>`;
+      empsDelGrupo.forEach(emp=>{
+        const dias = new Set(guardados[emp.id] || []);
+        filas += `<tr><td class="fp-nombre">${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</td>`;
+        for(let d=1; d<=diasEnMes; d++){
+          const diaSemana = new Date(anio, mes, d).getDay();
+          const finde = (diaSemana===0 || diaSemana===6) ? ' fp-finde' : '';
+          filas += `<td class="${finde.trim()}">${dias.has(d) ? 'F' : ''}</td>`;
+        }
+        filas += `<td class="fp-total">${dias.size}</td></tr>`;
+      });
+    });
+
+    if(!filas){
+      filas = `<tr><td colspan="${diasEnMes+2}">No hay empleados cargados con ese puesto.</td></tr>`;
+    }
+
+    const subtitulo = filtroPuesto ? ` — ${ETIQUETA_PUESTO[filtroPuesto] || filtroPuesto}` : '';
+
+    return `<div class="francos-print-sheet">
+      <div class="mp-title">FRANCOS ${NOMBRES_MES_FRANCOS[mes]} ${anio}${subtitulo}</div>
+      <table class="francos-print-table">
+        <thead><tr>${headerCols}</tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>`;
+  }
+
+  $('#imprimirFrancosBtn').addEventListener('click', ()=>{
+    const mesKey = $('#francosMes').value || todayISO().slice(0,7);
+    const filtroPuesto = $('#francosPuestoFiltro').value;
+    // La hoja se arma con lo GUARDADO en el servidor, no con lo que está en pantalla.
+    if(francosSucios[mesKey] && !confirm('Este mes tiene francos marcados sin guardar.\nLa hoja se va a imprimir con lo último guardado.\n\n¿Imprimir igual?')) return;
+    $('#printArea').innerHTML = construirFrancosPrintSheet(mesKey, filtroPuesto);
+
+    // La hoja de Francos se imprime horizontal (apaisada) porque tiene hasta 31
+    // columnas de días -- entra mucho mejor apaisada. Esto se hace con una regla
+    // @page temporal, que se agrega justo antes de imprimir y se saca apenas
+    // termina, para no afectar a la Planilla de Producción ni al Menú de
+    // Personal (esas siguen imprimiéndose en vertical, como siempre).
+    const estiloHorizontal = document.createElement('style');
+    estiloHorizontal.textContent = '@page{ size: landscape; }';
+    document.head.appendChild(estiloHorizontal);
+    let yaSaco = false;
+    const sacarEstiloHorizontal = () => {
+      if(yaSaco) return;
+      yaSaco = true;
+      estiloHorizontal.remove();
+    };
+    window.addEventListener('afterprint', sacarEstiloHorizontal, { once: true });
+
+    setTimeout(()=>{
+      window.print();
+      // Por si el navegador no llega a disparar "afterprint" (pasa en algunos
+      // flujos de "Guardar como PDF" en el celular), la sacamos igual a los pocos segundos.
+      setTimeout(sacarEstiloHorizontal, 4000);
+    }, 60);
+  });
+
+  // ---------- Imprimir ----------
+  $('#printDate').value = todayISO();
+  $('#printDate').addEventListener('change', renderPrintArea);
+  $('#printRango').addEventListener('change', renderPrintArea);
+  $('#doPrintBtn').addEventListener('click', ()=>{ renderPrintArea(); setTimeout(()=>window.print(), 60); });
+
+  $('#printMesPersonal').value = todayISO().slice(0,7);
+  $('#doPrintMenuPersonalBtn').addEventListener('click', ()=>{
+    renderMenuPersonalArea();
+    setTimeout(()=>window.print(), 60);
+  });
+
+  // Dada una fecha ISO, devuelve la posición (1-based) dentro del ciclo de listas, o '' si no aplica.
+  function posicionCicloParaFecha(fecha){
+    const seq = ciclo.secuenciaListaIds || [];
+    if(seq.length === 0 || !ciclo.fechaInicio) return '';
+    const dIni = new Date(ciclo.fechaInicio + 'T00:00:00');
+    const dFecha = new Date(fecha + 'T00:00:00');
+    const diffDias = Math.round((dFecha - dIni) / 86400000);
+    if(diffDias < 0) return '';
+    return String((diffDias % seq.length) + 1);
+  }
+
+  // Arma la planilla "MENU [MES]" con almuerzos y cenas de PERSONAL, día por día,
+  // según lo que resuelve el ciclo de listas para cada fecha del mes elegido.
+  function construirMenuPersonalMensual(anioMesStr){
+    const [anioStr, mesStr] = (anioMesStr || todayISO().slice(0,7)).split('-');
+    const anio = parseInt(anioStr, 10);
+    const mes = parseInt(mesStr, 10) - 1; // 0-indexado
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+    const NOMBRES_MES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+    let filas = '';
+    for(let dia=1; dia<=diasEnMes; dia++){
+      const fechaISO = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const lista = resolverListaParaFecha(fechaISO);
+
+      let textoAlmuerzo = '—', textoCena = '—';
+      if(lista){
+        const menusDeLista = (lista.menuIds || []).map(id => menus.find(m => m.id === id)).filter(Boolean);
+        const menuAlm = menusDeLista.find(m => m.grupo === 'PERSONAL ALMUERZO');
+        const menuCena = menusDeLista.find(m => m.grupo === 'PERSONAL CENA');
+        if(menuAlm) textoAlmuerzo = escapeHtml(menuAlm.nombre.toUpperCase());
+        if(menuCena) textoCena = escapeHtml(menuCena.nombre.toUpperCase());
+      }
+
+      const lTxt = posicionCicloParaFecha(fechaISO);
+
+      filas += `<tr>
+        <td class="mp-dia">${dia}</td>
+        <td class="mp-alm">${textoAlmuerzo}</td>
+        <td class="mp-cena">${textoCena}</td>
+        <td class="mp-l">${lTxt}</td>
+      </tr>`;
+    }
+
+    return `<div class="mp-sheet">
+      <div class="mp-title">MENU ${NOMBRES_MES[mes]} ${anio}</div>
+      <table class="mp-table">
+        <thead>
+          <tr>
+            <th colspan="2">ALMUERZOS</th>
+            <th>CENAS</th>
+            <th>L</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="mp-legend">L = posición del día dentro del ciclo de listas.</div>
+    </div>`;
+  }
+
+  function renderMenuPersonalArea(){
+    const val = $('#printMesPersonal').value || todayISO().slice(0,7);
+    $('#printArea').innerHTML = construirMenuPersonalMensual(val);
+  }
+
+  // Arma el HTML de la hoja de UN solo día (lo que antes era toda renderPrintArea).
+  function construirHojaDelDia(fecha){
+    const diaSemana = new Date(fecha + 'T00:00:00').getDay();
+    const lista = resolverListaParaFecha(fecha);
+
+    const entriesPorGrupo = {};
+    GRUPOS.forEach(g => entriesPorGrupo[g] = []);
+
+    if(lista){
+      (lista.menuIds || []).forEach(menuId=>{
+        const menu = menus.find(m=>m.id===menuId);
+        if(!menu || !GRUPOS.includes(menu.grupo)) return;
+        (menu.items || []).forEach(it=>{
+          entriesPorGrupo[menu.grupo].push(it);
+        });
+      });
+    }
+
+    let html = `<div class="ticket">
+      <div class="ticket-titlebar">
+        <div class="ticket-title">Planilla de Producción</div>
+      </div>
+      <div class="ticket-datebar">${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(fecha)}</div>`;
+
+    if(!lista){
+      html += `<div class="no-entries">No hay ninguna lista asignada a esta fecha según el ciclo. Andá a la pestaña "Listas" → "Ciclo de listas" para configurarlo.</div></div>`;
+      return html;
+    }
+
+    function construirGrupoHtml(grupo){
+      const groupEntries = entriesPorGrupo[grupo];
+      let h = `<div class="ticket-group">
+        <div class="ticket-group-bar">
+          <span>${grupo}</span>
+          <span class="ticket-group-date">${fmtDateHuman(fecha)}</span>
+        </div>`;
+      if(groupEntries.length===0){
+        h += `<div class="no-entries">Sin platos para este grupo en la lista "${escapeHtml(lista.nombre)}".</div>`;
+      } else {
+        groupEntries.forEach(e=>{
+          const rec = recipes.find(r=>r.id===e.recipeId);
+          if(!rec) return;
+          h += `<div class="ticket-dish-title">${e.raciones} RAC. DE ${escapeHtml(rec.name.toUpperCase())}</div>
+            <table class="ticket-table"><tbody>`;
+          (rec.ingredients || []).forEach(ing=>{
+            const total = ing.qty * e.raciones;
+            h += `<tr>
+              <td class="ti-name">${escapeHtml(ing.name.toUpperCase())}</td>
+              <td class="ti-unit">${fmtNum(ing.qty)} ${ing.unit.toUpperCase()}</td>
+              <td class="ti-total">${fmtTotalConversion(total, ing.unit)}</td>
+            </tr>`;
+          });
+          h += `</tbody></table>`;
+        });
+      }
+      h += `</div>`;
+      return h;
+    }
+
+    html += `<div class="ticket-columns">
+      ${construirGrupoHtml('PACIENTE ALMUERZO')}
+      ${construirGrupoHtml('PACIENTE CENA')}
+      ${construirGrupoHtml('PERSONAL ALMUERZO')}
+      ${construirGrupoHtml('PERSONAL CENA')}
+    </div>`;
+
+    html += `</div>`;
+    return html;
+  }
+
+  // Dada una fecha ISO (YYYY-MM-DD) y un rango ('dia'|'semana'|'mes'),
+  // devuelve el arreglo de fechas ISO a imprimir.
+  function fechasDelRango(fechaRef, rango){
+    const dRef = new Date(fechaRef + 'T00:00:00');
+    const fechas = [];
+    if(rango === 'dia'){
+      fechas.push(fechaRef);
+    } else if(rango === 'semana'){
+      // Semana de Lunes a Domingo
+      const diaSemana = dRef.getDay(); // 0=Domingo...6=Sábado
+      const offsetHastaLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
+      const lunes = new Date(dRef);
+      lunes.setDate(lunes.getDate() + offsetHastaLunes);
+      for(let i=0; i<7; i++){
+        const d = new Date(lunes);
+        d.setDate(d.getDate() + i);
+        fechas.push(isoLocal(d));
+      }
+    } else if(rango === 'mes'){
+      const anio = dRef.getFullYear();
+      const mes = dRef.getMonth();
+      const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+      for(let dia=1; dia<=diasEnMes; dia++){
+        fechas.push(`${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`);
+      }
+    }
+    return fechas;
+  }
+
+  function renderPrintArea(){
+    const fecha = $('#printDate').value || todayISO();
+    const rango = $('#printRango').value || 'dia';
+    const area = $('#printArea');
+
+    const fechas = fechasDelRango(fecha, rango);
+    const abrirTodos = rango === 'dia'; // si es un solo día, mostrarlo abierto directamente
+
+    const html = fechas.map(f => {
+      const diaSemana = new Date(f + 'T00:00:00').getDay();
+      const lista = resolverListaParaFecha(f);
+      const resumenLista = lista ? escapeHtml(lista.nombre) : 'sin lista asignada';
+      return `<div class="sheet-day${abrirTodos ? ' open' : ''}">
+        <button type="button" class="day-toggle">
+          <span class="day-toggle-arrow">▸</span>
+          <span>${DIAS_SEMANA[diaSemana]} ${fmtDateHuman(f)}</span>
+          <span class="day-toggle-lista">${resumenLista}</span>
+        </button>
+        <div class="day-body">${construirHojaDelDia(f)}</div>
+      </div>`;
+    }).join('');
+    area.innerHTML = html;
+
+    $$('.day-toggle', area).forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        btn.parentElement.classList.toggle('open');
+      });
+    });
+  }
+
+  // ---------- Init ----------
+  (async function init(){
+    await loadAll();
+    if(recipes.length===0){
+      addIngRow();
+    } else {
+      currentIngRows = [];
+      addIngRow();
+    }
+    resetMenuForm();
+    resetListaForm();
+    renderRecipeList();
+    renderPrintArea();
+  })();
+
+})();
+}
+initApp();
+</script>
+</body>
+</html>
