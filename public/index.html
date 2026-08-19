@@ -1302,21 +1302,11 @@
     <div class="card" id="empFormCard" style="display:none;">
       <h2><span class="n">+</span> Nuevo empleado</h2>
       <div class="row" style="flex-wrap:wrap;">
-        <div class="field" style="min-width:160px;">
-          <label>Nombre</label>
-          <input type="text" id="empNombre" placeholder="Ej: Juan">
+        <div class="field" style="min-width:220px;">
+          <label>Nombre y apellido</label>
+          <input type="text" id="empNombreCompleto" placeholder="Ej: Juan Pérez">
         </div>
-        <div class="field" style="min-width:160px;">
-          <label>Apellido</label>
-          <input type="text" id="empApellido" placeholder="Ej: Pérez">
-        </div>
-        <div class="field" style="max-width:140px; min-width:110px;">
-          <label>N° de legajo</label>
-          <input type="text" id="empLegajo" placeholder="Ej: 1024">
-        </div>
-      </div>
-      <div class="row" style="flex-wrap:wrap;">
-        <div class="field" style="min-width:160px;">
+        <div class="field" style="min-width:150px;">
           <label>Puesto</label>
           <select id="empPuesto">
             <option value="DESPENSA">DESPENSA</option>
@@ -1324,7 +1314,7 @@
             <option value="CAMARERA">CAMARERA</option>
           </select>
         </div>
-        <div class="field" style="max-width:220px; min-width:180px;">
+        <div class="field" style="max-width:200px; min-width:170px;">
           <label>Turno</label>
           <select id="empTurno">
             <option value="Turno mañana">Turno mañana</option>
@@ -1333,7 +1323,11 @@
             <option value="Otro">Otro</option>
           </select>
         </div>
-        <div class="field" style="max-width:170px; min-width:150px;">
+        <div class="field" style="max-width:130px; min-width:100px;">
+          <label>N° de legajo</label>
+          <input type="text" id="empLegajo" placeholder="Ej: 1024">
+        </div>
+        <div class="field" style="max-width:160px; min-width:140px;">
           <label>Fecha de ingreso</label>
           <input type="date" id="empFechaIngreso">
         </div>
@@ -2723,10 +2717,20 @@ function initApp(){
     return partes.join(' y ');
   }
 
+  // Nombre para mostrar de un empleado. Los que se cargan de acá en adelante
+  // guardan todo en un solo campo (emp.nombreCompleto). Los que ya estaban
+  // cargados de antes (con nombre y apellido separados) se siguen mostrando
+  // bien, combinando los dos campos viejos en "Apellido, Nombre" -- así no
+  // hay que tocar a mano a los empleados que ya estaban cargados.
+  function nombreMostrar(emp){
+    if(emp.nombreCompleto) return emp.nombreCompleto;
+    if(emp.apellido || emp.nombre) return [emp.apellido, emp.nombre].filter(Boolean).join(', ');
+    return '';
+  }
+
   function resetEmpleadoForm(){
     $('#empLegajo').value = '';
-    $('#empNombre').value = '';
-    $('#empApellido').value = '';
+    $('#empNombreCompleto').value = '';
     $('#empPuesto').value = 'DESPENSA';
     $('#empFechaIngreso').value = '';
     $('#empTurno').value = 'Turno mañana';
@@ -2758,19 +2762,22 @@ function initApp(){
 
   $('#saveEmpleadoBtn').addEventListener('click', async ()=>{
     const legajo = $('#empLegajo').value.trim();
-    const nombre = $('#empNombre').value.trim();
-    const apellido = $('#empApellido').value.trim();
+    const nombreCompleto = $('#empNombreCompleto').value.trim();
     const puesto = $('#empPuesto').value.trim();
     const fechaIngreso = $('#empFechaIngreso').value;
     const turno = $('#empTurno').value;
-    if(!nombre || !apellido){ alert('Poné al menos el nombre y el apellido del empleado.'); return; }
+    if(!nombreCompleto){ alert('Poné el nombre y apellido del empleado.'); return; }
 
     const editingId = $('#saveEmpleadoBtn').dataset.editing;
     if(editingId){
       const idx = empleados.findIndex(e=>e.id===editingId);
-      if(idx>=0) empleados[idx] = {...empleados[idx], legajo, nombre, apellido, puesto, fechaIngreso, turno};
+      // Se borran los campos viejos "nombre"/"apellido" al editar (si los tenía,
+      // por ser un empleado cargado antes de este cambio): a partir de ahora
+      // ese empleado vive solo con el campo único, sin quedar información
+      // duplicada o contradictoria entre los dos formatos.
+      if(idx>=0) empleados[idx] = {...empleados[idx], legajo, nombreCompleto, nombre: undefined, apellido: undefined, puesto, fechaIngreso, turno};
     } else {
-      empleados.push({id:uid(), legajo, nombre, apellido, puesto, fechaIngreso, turno});
+      empleados.push({id:uid(), legajo, nombreCompleto, puesto, fechaIngreso, turno});
     }
     await saveEmpleados();
     ocultarFormEmpleado();
@@ -2786,7 +2793,7 @@ function initApp(){
     }
     box.innerHTML = '';
     empleados.slice()
-      .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||'') || (a.nombre||'').localeCompare(b.nombre||''))
+      .sort((a,b)=> nombreMostrar(a).localeCompare(nombreMostrar(b)))
       .forEach(emp=>{
         const div = document.createElement('div');
         div.className = 'recipe-chip';
@@ -2798,7 +2805,7 @@ function initApp(){
         div.innerHTML = `
           <div class="info">
             <div class="emp-primary">
-              <b>${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</b><span class="tag">LEGAJO ${escapeHtml(emp.legajo || '—')}</span>
+              <b>${escapeHtml(nombreMostrar(emp))}</b><span class="tag">LEGAJO ${escapeHtml(emp.legajo || '—')}</span>
             </div>
             <div class="ings">${escapeHtml(emp.puesto || 'Sin puesto')} · ${escapeHtml(emp.turno || 'Turno mañana')}</div>
             <div class="ings">Ingreso: ${ingresoTxt} · Vacaciones: ${vacTxt}</div>
@@ -2819,8 +2826,7 @@ function initApp(){
     if(!emp) return;
     mostrarFormEmpleado();
     $('#empLegajo').value = emp.legajo || '';
-    $('#empNombre').value = emp.nombre || '';
-    $('#empApellido').value = emp.apellido || '';
+    $('#empNombreCompleto').value = nombreMostrar(emp);
     $('#empPuesto').value = emp.puesto || 'DESPENSA';
     $('#empFechaIngreso').value = emp.fechaIngreso || '';
     $('#empTurno').value = emp.turno || 'Turno mañana';
@@ -3007,12 +3013,12 @@ function initApp(){
       const empsDelGrupo = empleados
         .filter(e => (e.turno || 'Turno mañana') === grupo)
         .filter(e => !filtroPuesto || e.puesto === filtroPuesto)
-        .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||''));
+        .sort((a,b)=> nombreMostrar(a).localeCompare(nombreMostrar(b)));
       if(empsDelGrupo.length === 0) return;
       huboAlguno = true;
       html += `<tr class="francos-grupo-row"><td colspan="${diasEnMes+2}">${escapeHtml(grupo)}</td></tr>`;
       empsDelGrupo.forEach(emp=>{
-        html += `<tr data-emp="${emp.id}"><td class="francos-nombre">${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</td>`;
+        html += `<tr data-emp="${emp.id}"><td class="francos-nombre">${escapeHtml(nombreMostrar(emp))}</td>`;
         const mapaEmp = francosEnEdicion[emp.id];
         for(let d=1; d<=diasEnMes; d++){
           const fase = mapaEmp.get(d) || 0;
@@ -3103,7 +3109,7 @@ function initApp(){
       const empsDelGrupo = empleados
         .filter(e => (e.turno || 'Turno mañana') === grupo)
         .filter(e => !filtroPuesto || e.puesto === filtroPuesto)
-        .sort((a,b)=> (a.apellido||'').localeCompare(b.apellido||''));
+        .sort((a,b)=> nombreMostrar(a).localeCompare(nombreMostrar(b)));
       if(empsDelGrupo.length === 0) return;
       filas += `<tr class="fp-grupo-row"><td colspan="${diasEnMes+2}">${escapeHtml(grupo)}</td></tr>`;
       empsDelGrupo.forEach(emp=>{
@@ -3113,7 +3119,7 @@ function initApp(){
         const guardadoEmp = guardados[emp.id];
         const diasF = new Set(Array.isArray(guardadoEmp) ? guardadoEmp : (guardadoEmp && guardadoEmp.f) || []);
         const diasV = new Set(Array.isArray(guardadoEmp) ? [] : (guardadoEmp && guardadoEmp.v) || []);
-        filas += `<tr><td class="fp-nombre">${escapeHtml(emp.apellido)}, ${escapeHtml(emp.nombre)}</td>`;
+        filas += `<tr><td class="fp-nombre">${escapeHtml(nombreMostrar(emp))}</td>`;
         for(let d=1; d<=diasEnMes; d++){
           const diaSemana = new Date(anio, mes, d).getDay();
           const finde = (diaSemana===0 || diaSemana===6) ? ' fp-finde' : '';
